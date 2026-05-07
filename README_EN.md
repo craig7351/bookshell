@@ -9,6 +9,12 @@ SSH terminal for AI agents — a Tauri 2 + SolidJS desktop app with multi-tab xt
 ## Features
 
 - Multi-tab SSH and local shell sessions (xterm.js + WebGL renderer)
+- Left tabs remember their working directory — auto-`cd` back on next launch
+- Drag-and-drop tab reordering in the left sidebar
+- Find-in-buffer with colored match highlighting
+- Customizable quick-command buttons along the bottom for one-click frequent commands
+- Right-side Git view with live status; click any modified file to see its diff
+- Bottom-right side terminal sharing the main tab's cwd — handy for issuing commands while an AI agent is busy in the main pane
 - Side terminal panel with independent font size
 - Clickable URLs, middle-click paste, scrollback search
 - Persistent SSH sessions with keepalive past server idle timeouts
