@@ -6,9 +6,20 @@ SSH terminal for AI agents — a Tauri 2 + SolidJS desktop app with multi-tab xt
 
 ## Screenshots
 
-![Screenshot 1](docs/image1.jpg)
-![Screenshot 2](docs/image2.jpg)
-![Screenshot 3](docs/image3.jpg)
+**Pin a tab's working directory** — right-click a tab and set `cwd`. The path is remembered, so next time you launch BOOKSHELL the tab opens directly in that folder.
+透過 tab 右鍵 `cwd` 可固定該分頁的工作目錄；下次重開軟體會自動進入設定的資料夾。
+
+![Pin tab cwd](docs/image1.jpg)
+
+**Logs panel** — the top-right Logs view automatically records every tab's content, including conversations with your AI agent.
+右上角 Logs 自動記錄所有 tab 的內容，包含跟 AI agent 的對話。
+
+![Logs panel](docs/image2.jpg)
+
+**Git view** — inspect the changes inside any commit by SHA.
+Git view 可直接檢視某個 SHA 內所修改的內容。
+
+![Git view by SHA](docs/image3.jpg)
 
 [English](#english) | [中文](#中文)
 
