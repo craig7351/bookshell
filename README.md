@@ -4,6 +4,12 @@ SSH terminal for AI agents — a Tauri 2 + SolidJS desktop app with multi-tab xt
 
 ![BOOKSHELL screenshot](bookshell.png)
 
+## Screenshots
+
+![Screenshot 1](docs/image1.jpg)
+![Screenshot 2](docs/image2.jpg)
+![Screenshot 3](docs/image3.jpg)
+
 [English](#english) | [中文](#中文)
 
 ---
