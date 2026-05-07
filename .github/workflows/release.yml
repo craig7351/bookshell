@@ -101,3 +101,15 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Upload Windows portable exe
+        if: matrix.platform == 'windows-latest' && startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          SRC="src-tauri/target/release/bookshell.exe"
+          OUT="BOOKSHELL_${VERSION}_x64-portable.exe"
+          cp "$SRC" "$OUT"
+          gh release upload "${GITHUB_REF_NAME}" "$OUT" --clobber
