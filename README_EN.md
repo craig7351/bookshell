@@ -29,11 +29,11 @@ SSH terminal for AI agents — a Tauri 2 + SolidJS desktop app with multi-tab xt
 
 **Logs panel** — the top-right Logs view automatically records every tab's content, including conversations with your AI agent.
 
-![Logs panel](docs/image2.jpg)
+![Logs panel](docs/image2.png)
 
 **Git view** — inspect the changes inside any commit by SHA.
 
-![Git view by SHA](docs/image3.jpg)
+![Git view by SHA](docs/image3.png)
 
 ## Development
 

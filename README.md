@@ -29,11 +29,11 @@
 
 **Logs 面板** — 右上角 Logs 自動記錄所有 tab 的內容，包含跟 AI agent 的對話。
 
-![Logs 面板](docs/image2.jpg)
+![Logs 面板](docs/image2.png)
 
 **Git view** — 可直接檢視某個 SHA 內所修改的內容。
 
-![Git view 看 SHA](docs/image3.jpg)
+![Git view 看 SHA](docs/image3.png)
 
 ## 開發
 
