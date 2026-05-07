@@ -141,6 +141,37 @@ export function TerminalView(props: Props) {
     term.open(host);
     fit.fit();
 
+    // WebKitGTK + IME (fcitx5 chewing/pinyin/ibus) workaround: xterm's
+    // composition handling on Linux WebKit emits the committed text twice
+    // (once via compositionend, once via the trailing input event). Take over
+    // IME entirely: write the composed text ourselves on compositionend and
+    // swallow the bubble-phase listeners xterm registered on the textarea.
+    {
+      const ta = term.textarea as HTMLTextAreaElement | null;
+      if (ta) {
+        const ac = new AbortController();
+        let endedAt = 0;
+        ta.addEventListener("compositionend", (e) => {
+          const ce = e as CompositionEvent;
+          const text = ce.data && ce.data.length > 0 ? ce.data : ta.value;
+          if (text) {
+            const sid = props.tab.sessionId;
+            if (sid) api.sshWrite(sid, text).catch(console.error);
+          }
+          ta.value = "";
+          endedAt = performance.now();
+          ce.stopImmediatePropagation();
+        }, { capture: true, signal: ac.signal });
+        ta.addEventListener("input", (ev) => {
+          if (performance.now() - endedAt < 250) {
+            ev.stopImmediatePropagation();
+            ta.value = "";
+          }
+        }, { capture: true, signal: ac.signal });
+        onCleanup(() => ac.abort());
+      }
+    }
+
     search.onDidChangeResults((e) =>
       setMatches({ resultIndex: e.resultIndex, resultCount: e.resultCount }),
     );
