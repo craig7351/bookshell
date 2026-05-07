@@ -65,6 +65,31 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Sync version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Setting version to $VERSION"
+          node -e "
+            const fs=require('fs');
+            for (const f of ['package.json','src-tauri/tauri.conf.json']) {
+              const j=JSON.parse(fs.readFileSync(f,'utf8'));
+              j.version='$VERSION';
+              fs.writeFileSync(f, JSON.stringify(j,null,2)+'\n');
+            }
+          "
+          # Update Cargo.toml [package] version (first occurrence only)
+          python -c "
+          import re,sys
+          p='src-tauri/Cargo.toml'
+          t=open(p,encoding='utf-8').read()
+          t=re.sub(r'(?m)^(version\s*=\s*)\"[^\"]+\"', r'\1\"$VERSION\"', t, count=1)
+          open(p,'w',encoding='utf-8').write(t)
+          "
+          # Refresh Cargo.lock so the workspace version matches
+          (cd src-tauri && cargo update --workspace --offline 2>/dev/null || cargo update --workspace)
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
