@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BOOKSHELL</title>
+    <link rel="stylesheet" href="/node_modules/@xterm/xterm/css/xterm.css" />
+    <style>
+      html, body, #root {
+        height: 100%; margin: 0;
+        background: #1c1c1e;
+        color: #f2f2f7;
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
+        font-size: 13px;
+        -webkit-font-smoothing: antialiased;
+      }
+      * { box-sizing: border-box; }
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.28); }
+      button { font-family: inherit; }
+      input, textarea, select { font-family: inherit; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
