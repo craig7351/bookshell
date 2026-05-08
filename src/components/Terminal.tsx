@@ -38,6 +38,11 @@ export function TerminalView(props: Props) {
   const [query, setQuery] = createSignal("");
   const [pwPrompt, setPwPrompt] = createSignal("");
   const [reconnecting, setReconnecting] = createSignal(false);
+  // Reactive flag flipped at the end of onMount. Effects that need a live
+  // `term` instance must depend on this — SolidJS runs createEffect bodies
+  // before onMount callbacks, so reading `term` directly in an effect's
+  // first pass would see undefined.
+  const [termReady, setTermReady] = createSignal(false);
 
   const profile = () =>
     connections().find((c) => c.id === props.tab.connectionId) ?? null;
@@ -255,6 +260,8 @@ export function TerminalView(props: Props) {
     });
     ro.observe(host);
     onCleanup(() => ro.disconnect());
+
+    setTermReady(true);
   });
 
   // Refit when activated
@@ -273,9 +280,10 @@ export function TerminalView(props: Props) {
   // smaller than the visible viewport — leaving dead rows at the bottom that
   // PTY never writes to. xterm.onResize only fires on size *changes*, so it
   // can't catch up after the fact. Push the current dims explicitly here.
+  // Depend on termReady so the effect re-runs once onMount has set up `term`.
   createEffect(() => {
     const sid = props.tab.sessionId;
-    if (!sid || !term) return;
+    if (!sid || !termReady() || !term) return;
     queueMicrotask(() => {
       fit?.fit();
       if (term) api.sshResize(sid, term.cols, term.rows).catch(console.error);
