@@ -259,16 +259,13 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string }) {
     };
     host.addEventListener("mouseup", onMouseUp);
 
-    // Middle-click paste (X11-style): write clipboard text straight to the PTY.
+    // Middle-click: just suppress the browser's auto-scroll affordance.
+    // WebKitGTK already does X11-style primary-selection paste into the
+    // focused textarea, which xterm forwards via onData — doing our own
+    // clipboard.readText + sshWrite here would paste twice.
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 1) return;
       e.preventDefault();
-      navigator.clipboard
-        .readText()
-        .then((text) => {
-          if (text) api.sshWrite(props.sessionId, text).catch(console.error);
-        })
-        .catch((err) => console.warn("clipboard read failed", err));
     };
     host.addEventListener("mousedown", onMouseDown);
 
