@@ -121,3 +121,10 @@ pub async fn config_delete_connection(id: String) -> Result<(), String> {
     all.retain(|c| c.id != id);
     save_connections(&all)
 }
+
+#[tauri::command]
+pub async fn config_reorder_connections(ids: Vec<String>) -> Result<(), String> {
+    let mut all = load_connections()?;
+    all.sort_by_key(|c| ids.iter().position(|id| id == &c.id).unwrap_or(usize::MAX));
+    save_connections(&all)
+}
