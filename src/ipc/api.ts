@@ -68,6 +68,9 @@ export const api = {
   deleteConnection: (id: string) =>
     invoke<void>("config_delete_connection", { id }),
 
+  reorderConnections: (ids: string[]) =>
+    invoke<void>("config_reorder_connections", { ids }),
+
   // Logging
   loggerOpenDir: () => invoke<void>("logger_open_dir"),
   loggerDirPath: () => invoke<string>("logger_dir_path"),

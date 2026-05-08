@@ -49,6 +49,7 @@ pub fn run() {
             config::config_list_connections,
             config::config_save_connection,
             config::config_delete_connection,
+            config::config_reorder_connections,
             logger::logger_open_dir,
             logger::logger_dir_path,
             logger::logs_list,
