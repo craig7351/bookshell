@@ -337,10 +337,12 @@ export function TerminalView(props: Props) {
               {(p) => (
                 <>
                   <div style={{ "margin-bottom": "12px", opacity: 0.8 }}>
-                    {p().user}@{p().host}:{p().port}
+                    {p().kind === "local"
+                      ? `📟 local · ${p().shell ?? ""}`
+                      : `${p().user}@${p().host}:${p().port}`}
                   </div>
                   <Show
-                    when={p().password && p().password!.length > 0}
+                    when={p().kind === "local" || (p().password && p().password!.length > 0)}
                     fallback={
                       <div style={{ display: "flex", gap: "6px" }}>
                         <input

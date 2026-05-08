@@ -17,6 +17,20 @@ fn default_shell() -> String {
     std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
 }
 
+fn expand_tilde<S: AsRef<str>>(s: S) -> String {
+    let s = s.as_ref();
+    if s == "~" {
+        if let Ok(home) = std::env::var("HOME") {
+            return home;
+        }
+    } else if let Some(rest) = s.strip_prefix("~/") {
+        if let Ok(home) = std::env::var("HOME") {
+            return format!("{}/{}", home.trim_end_matches('/'), rest);
+        }
+    }
+    s.to_string()
+}
+
 /// Spawn a local interactive shell on a fresh PTY. The session shows up in
 /// the same `state.sessions` map as SSH PTYs and is driven by ssh_write /
 /// ssh_resize / ssh_disconnect, so the frontend treats it identically.
@@ -40,24 +54,58 @@ pub async fn local_open_pty(
         })
         .map_err(|e| format!("openpty: {}", e))?;
 
-    let shell_path = shell
+    let shell_field = shell
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(str::to_string)
         .unwrap_or_else(default_shell);
 
-    let mut builder = CommandBuilder::new(&shell_path);
+    // Whitespace-split the shell field into program + args so users can
+    // type things like `screen.sh 2` or `~/.local/bin/wrap.sh foo`. Tilde
+    // is expanded against $HOME — portable_pty hands the path straight to
+    // the OS exec, which doesn't do any shell expansion.
+    let mut parts = shell_field.split_whitespace();
+    let program_raw = parts.next().unwrap_or("");
+    let program = expand_tilde(program_raw);
+    let args: Vec<String> = parts.map(expand_tilde).collect();
+
+    let mut builder = CommandBuilder::new(&program);
+    for arg in &args {
+        builder.arg(arg);
+    }
     if let Some(d) = cwd.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-        builder.cwd(d);
+        builder.cwd(expand_tilde(d));
     }
     // Forward TERM so colors etc. work like a normal terminal.
     builder.env("TERM", "xterm-256color");
 
+    // GUI-launched apps inherit a stripped-down PATH that doesn't include
+    // user bin dirs, so `screen.sh` style entries can't be resolved. Prepend
+    // ~/.local/bin and ~/bin if they aren't already in PATH.
+    #[cfg(not(target_os = "windows"))]
+    if let Ok(home) = std::env::var("HOME") {
+        let current = std::env::var("PATH").unwrap_or_default();
+        let extras = [format!("{}/.local/bin", home), format!("{}/bin", home)];
+        let missing: Vec<&str> = extras
+            .iter()
+            .map(String::as_str)
+            .filter(|e| !current.split(':').any(|p| p == *e))
+            .collect();
+        if !missing.is_empty() {
+            let mut new_path = missing.join(":");
+            if !current.is_empty() {
+                new_path.push(':');
+                new_path.push_str(&current);
+            }
+            builder.env("PATH", new_path);
+        }
+    }
+
     let child = pair
         .slave
         .spawn_command(builder)
-        .map_err(|e| format!("spawn {}: {}", shell_path, e))?;
+        .map_err(|e| format!("spawn {}: {}", program, e))?;
     drop(pair.slave);
 
     let master = Arc::new(StdMutex::new(pair.master));
@@ -79,7 +127,7 @@ pub async fn local_open_pty(
     // Per-session logger — same scheme as SSH sessions, label is the shell's
     // basename so files like `20260501_..._powershell.exe.log` show up in
     // ~/Documents/BOOKSHELL/logs.
-    let log_label = std::path::Path::new(&shell_path)
+    let log_label = std::path::Path::new(&program)
         .file_name()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_else(|| "local".to_string());
