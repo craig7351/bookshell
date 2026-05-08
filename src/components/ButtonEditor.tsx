@@ -1,8 +1,9 @@
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { CloseX } from "./CloseX";
 import {
   buttons,
   loadButtons,
+  moveButton,
   newButtonId,
   removeButton,
   saveButton,
@@ -29,6 +30,22 @@ export function ButtonEditor(props: Props) {
   const [editing, setEditing] = createSignal<CommandButton | null>(null);
 
   loadButtons();
+
+  // ESC closes the dialog (or backs out of the edit form).
+  onMount(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (editing()) {
+        e.preventDefault();
+        setEditing(null);
+      } else {
+        e.preventDefault();
+        props.onClose();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    onCleanup(() => document.removeEventListener("keydown", onKey));
+  });
 
   function startEdit(b: CommandButton) {
     setEditing({ ...b });
@@ -57,8 +74,26 @@ export function ButtonEditor(props: Props) {
         <Show when={!editing()}>
           <Show when={buttons().length > 0} fallback={<div style={{ opacity: 0.6, padding: "20px", "text-align": "center" }}>No buttons. Click + New.</div>}>
             <For each={buttons()}>
-              {(b) => (
+              {(b, i) => (
                 <div style={row}>
+                  <div style={reorderCol}>
+                    <button
+                      onClick={() => moveButton(b.id, -1)}
+                      disabled={i() === 0}
+                      style={{ ...arrowBtn, opacity: i() === 0 ? 0.3 : 0.7 }}
+                      title="Move up"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      onClick={() => moveButton(b.id, 1)}
+                      disabled={i() === buttons().length - 1}
+                      style={{ ...arrowBtn, opacity: i() === buttons().length - 1 ? 0.3 : 0.7 }}
+                      title="Move down"
+                    >
+                      ▼
+                    </button>
+                  </div>
                   <div style={{ flex: 1, "min-width": 0 }}>
                     <div style={{ "font-weight": 600 }}>
                       {b.icon ? `${b.icon} ` : ""}
@@ -172,4 +207,22 @@ const btn = {
   "font-size": "13px",
   cursor: "pointer",
   "font-weight": 600,
+} as const;
+
+const reorderCol = {
+  display: "flex",
+  "flex-direction": "column",
+  gap: "1px",
+  "margin-right": "4px",
+} as const;
+
+const arrowBtn = {
+  background: "transparent",
+  color: "#cdd6f4",
+  border: "1px solid #45475a",
+  "border-radius": "4px",
+  padding: "1px 6px",
+  "font-size": "9px",
+  "line-height": "1",
+  cursor: "pointer",
 } as const;

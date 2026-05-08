@@ -28,6 +28,21 @@ export async function reorderButtons(ids: string[]) {
   await loadButtons();
 }
 
+export async function moveButton(id: string, delta: -1 | 1) {
+  const arr = [...buttons()];
+  const idx = arr.findIndex((b) => b.id === id);
+  if (idx < 0) return;
+  const newIdx = idx + delta;
+  if (newIdx < 0 || newIdx >= arr.length) return;
+  const [moved] = arr.splice(idx, 1);
+  arr.splice(newIdx, 0, moved);
+  setButtons(arr);
+  await api.buttonsReorder(arr.map((b) => b.id)).catch((e) => {
+    console.error("moveButton persist failed", e);
+    loadButtons();
+  });
+}
+
 export function newButtonId(): string {
   return `btn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }
