@@ -1,7 +1,7 @@
 import { createSignal, For, Show } from "solid-js";
 import { api, type CommandButton } from "../ipc/api";
 import { buttons, loadButtons } from "../stores/buttons";
-import { activeTab } from "../stores/tabs";
+import { activeTab, bumpFit } from "../stores/tabs";
 import { C, overlayStyle, dialogStyle, btnPrimary, btnSecondary, btnDanger } from "../theme";
 
 interface Props {
@@ -27,10 +27,13 @@ export function CommandBar(props: Props) {
         await api.sshWrite(t.sessionId, line);
         await api.sshWrite(t.sessionId, "\r");
       }
-      return;
+    } else {
+      await api.sshWrite(t.sessionId, payload);
+      if (b.send_enter) await api.sshWrite(t.sessionId, "\r");
     }
-    await api.sshWrite(t.sessionId, payload);
-    if (b.send_enter) await api.sshWrite(t.sessionId, "\r");
+    // Return focus to the terminal so the user can keep typing without an
+    // extra click. fitTick effect in Terminal.tsx handles the actual focus.
+    bumpFit(t.id);
   }
 
   function handleClick(b: CommandButton) {
