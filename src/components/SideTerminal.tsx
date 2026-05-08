@@ -200,6 +200,10 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string }) {
     } catch {}
     term.open(host);
     fit.fit();
+    // Push the actual fitted size to the PTY. side terminals are opened with
+    // placeholder cols/rows (100x30), so without this the remote shell sits at
+    // a smaller viewport than xterm displays.
+    api.sshResize(props.sessionId, term.cols, term.rows).catch(console.error);
 
     // WebKitGTK + IME (fcitx5 chewing/pinyin/ibus) workaround: xterm's
     // composition handling on Linux WebKit emits the committed text twice

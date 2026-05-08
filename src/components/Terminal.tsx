@@ -268,6 +268,20 @@ export function TerminalView(props: Props) {
     }
   });
 
+  // Sync PTY size to xterm once a session is attached. The initial connect
+  // call uses placeholder cols/rows (80x24), so the remote shell starts off
+  // smaller than the visible viewport — leaving dead rows at the bottom that
+  // PTY never writes to. xterm.onResize only fires on size *changes*, so it
+  // can't catch up after the fact. Push the current dims explicitly here.
+  createEffect(() => {
+    const sid = props.tab.sessionId;
+    if (!sid || !term) return;
+    queueMicrotask(() => {
+      fit?.fit();
+      if (term) api.sshResize(sid, term.cols, term.rows).catch(console.error);
+    });
+  });
+
   // Live-update term options when general settings change
   createEffect(() => {
     if (!term) return;
