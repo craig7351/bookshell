@@ -237,20 +237,13 @@ export function TerminalView(props: Props) {
     host.addEventListener("mouseup", onMouseUp);
     onCleanup(() => host.removeEventListener("mouseup", onMouseUp));
 
-    // Middle-click pastes plain text from the OS clipboard (X11-style). We
-    // intercept on mousedown to suppress the browser's auto-scroll affordance,
-    // then write the text directly to the PTY.
+    // Middle-click: just suppress the browser's auto-scroll affordance.
+    // WebKitGTK already does X11-style primary-selection paste into the
+    // focused textarea, which xterm forwards via onData — doing our own
+    // clipboard.readText + sshWrite here would paste twice.
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 1) return;
       e.preventDefault();
-      navigator.clipboard
-        .readText()
-        .then((text) => {
-          if (!text) return;
-          const sid = props.tab.sessionId;
-          if (sid) api.sshWrite(sid, text).catch(console.error);
-        })
-        .catch((err) => console.warn("clipboard read failed", err));
     };
     host.addEventListener("mousedown", onMouseDown);
     onCleanup(() => host.removeEventListener("mousedown", onMouseDown));
