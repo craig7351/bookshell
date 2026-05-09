@@ -5,6 +5,8 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon, type ISearchOptions } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import type { UnlistenFn } from "@tauri-apps/api/event";
 import { api } from "../ipc/api";
 import {
   bumpFit,
@@ -38,6 +40,7 @@ export function TerminalView(props: Props) {
   const [query, setQuery] = createSignal("");
   const [pwPrompt, setPwPrompt] = createSignal("");
   const [reconnecting, setReconnecting] = createSignal(false);
+  const [dragOver, setDragOver] = createSignal<"local" | "blocked" | null>(null);
   // Reactive flag flipped at the end of onMount. Effects that need a live
   // `term` instance must depend on this — SolidJS runs createEffect bodies
   // before onMount callbacks, so reading `term` directly in an effect's
@@ -254,6 +257,37 @@ export function TerminalView(props: Props) {
     ro.observe(host);
     onCleanup(() => ro.disconnect());
 
+    // OS-level drag-drop. Tauri intercepts file drops before they reach the
+    // webview, so HTML5 ondrop never fires — we have to subscribe to the
+    // Tauri event stream instead. Each TerminalView registers its own
+    // listener and gates on `props.active` so only the visible tab reacts.
+    let dragUnlisten: UnlistenFn | undefined;
+    getCurrentWebview()
+      .onDragDropEvent((ev) => {
+        if (!props.active) return;
+        const conn = connections().find((c) => c.id === props.tab.connectionId);
+        const isLocal = conn?.kind === "local";
+        const t = ev.payload.type;
+        if (t === "enter" || t === "over") {
+          setDragOver(isLocal ? "local" : "blocked");
+        } else if (t === "leave") {
+          setDragOver(null);
+        } else if (t === "drop") {
+          setDragOver(null);
+          if (!isLocal) return;
+          const paths = ev.payload.paths ?? [];
+          if (paths.length === 0) return;
+          const text = paths.map(quoteShellPath).join(" ") + " ";
+          term?.paste(text);
+          term?.focus();
+        }
+      })
+      .then((u) => {
+        dragUnlisten = u;
+      })
+      .catch((e) => console.warn("onDragDropEvent failed", e));
+    onCleanup(() => dragUnlisten?.());
+
     setTermReady(true);
   });
 
@@ -381,6 +415,23 @@ export function TerminalView(props: Props) {
             </Show>
           </div>
         </div>
+      </Show>
+      <Show when={dragOver()}>
+        {(mode) => (
+          <div style={dropOverlayStyle}>
+            <div
+              style={{
+                ...dropCardStyle,
+                color: mode() === "local" ? C.accent : C.text3,
+                "border-color": mode() === "local" ? C.accent : C.border,
+              }}
+            >
+              {mode() === "local"
+                ? "📎 Drop to paste path"
+                : "Drag-drop only supported on local connections"}
+            </div>
+          </div>
+        )}
       </Show>
       <Show when={isSearchOpenFor(props.tab.id)}>
         <div style={searchBarStyle} onClick={(e) => e.stopPropagation()}>
@@ -543,6 +594,38 @@ const pwInput = {
   "font-size": "13px",
   outline: "none",
 } as const;
+
+const dropOverlayStyle = {
+  position: "absolute",
+  inset: "0",
+  display: "flex",
+  "align-items": "center",
+  "justify-content": "center",
+  background: "rgba(0,0,0,0.55)",
+  "backdrop-filter": "blur(4px)",
+  "z-index": "11",
+  "pointer-events": "none",
+} as const;
+
+const dropCardStyle = {
+  padding: "20px 36px",
+  border: "2px dashed",
+  "border-radius": "12px",
+  background: "rgba(30,30,32,0.85)",
+  "font-size": "14px",
+  "font-weight": 500,
+} as const;
+
+/** Wrap a filesystem path so a shell will treat it as one argument. Plain
+ *  double-quotes are safe for typical paths on Windows (PowerShell) and
+ *  POSIX (bash/zsh) — backslashes inside `"..."` are literal in both. Paths
+ *  containing a literal `"` aren't perfectly portable; rare enough to skip. */
+function quoteShellPath(p: string): string {
+  if (/[\s"'`$|&;<>(){}[\]\\]/.test(p)) {
+    return `"${p.replace(/"/g, '\\"')}"`;
+  }
+  return p;
+}
 
 const primaryBtn = {
   background: C.accent,
