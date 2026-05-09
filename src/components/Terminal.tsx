@@ -41,6 +41,7 @@ export function TerminalView(props: Props) {
   const [pwPrompt, setPwPrompt] = createSignal("");
   const [reconnecting, setReconnecting] = createSignal(false);
   const [dragOver, setDragOver] = createSignal<"local" | "blocked" | null>(null);
+  const [uploading, setUploading] = createSignal(false);
   // Reactive flag flipped at the end of onMount. Effects that need a live
   // `term` instance must depend on this — SolidJS runs createEffect bodies
   // before onMount callbacks, so reading `term` directly in an effect's
@@ -180,11 +181,11 @@ export function TerminalView(props: Props) {
       }
     }
 
-    // Clipboard image paste (local connections only): when the user pastes
-    // and the clipboard holds an image with no accompanying text, save it as
-    // a PNG to the OS temp dir and paste the quoted path. Mixed text+image
-    // and pure text fall through to xterm's default text paste. SSH tabs
-    // skip this entirely — the saved path wouldn't exist on the remote host.
+    // Clipboard image paste: when the clipboard holds an image with no
+    // accompanying text, save it locally as PNG. On local tabs we paste the
+    // local path directly; on SSH tabs we upload the PNG to
+    // /tmp/bookshell-clip/ on the remote and paste the remote path. Mixed
+    // text+image and pure text fall through to xterm's default text paste.
     {
       const ta = term.textarea as HTMLTextAreaElement | null;
       if (ta) {
@@ -197,7 +198,7 @@ export function TerminalView(props: Props) {
             const conn = connections().find(
               (c) => c.id === props.tab.connectionId,
             );
-            if (conn?.kind !== "local") return;
+            if (!conn) return;
             const dt = ev.clipboardData;
             if (!dt) return;
             const text = dt.getData("text/plain");
@@ -207,16 +208,27 @@ export function TerminalView(props: Props) {
             if (text || !hasImage) return;
             ev.preventDefault();
             ev.stopImmediatePropagation();
-            api
-              .clipboardSaveImage()
-              .then((path) => {
-                if (!path) return;
-                term?.paste(quoteShellPath(path) + " ");
+            const sid = props.tab.sessionId;
+            (async () => {
+              const localPath = await api.clipboardSaveImage();
+              if (!localPath) return;
+              if (conn.kind === "local") {
+                term?.paste(quoteShellPath(localPath) + " ");
                 term?.focus();
-              })
-              .catch((err) =>
-                console.warn("clipboard image paste failed", err),
-              );
+                return;
+              }
+              if (!sid) return;
+              setUploading(true);
+              try {
+                const remotePath = await api.sshUploadFile(sid, localPath);
+                term?.paste(quoteShellPath(remotePath) + " ");
+                term?.focus();
+              } finally {
+                setUploading(false);
+              }
+            })().catch((err) =>
+              console.warn("clipboard image paste failed", err),
+            );
           },
           { capture: true, signal: ac.signal },
         );
@@ -476,6 +488,19 @@ export function TerminalView(props: Props) {
             </div>
           </div>
         )}
+      </Show>
+      <Show when={uploading()}>
+        <div style={dropOverlayStyle}>
+          <div
+            style={{
+              ...dropCardStyle,
+              color: C.accent,
+              "border-color": C.accent,
+            }}
+          >
+            ⬆ Uploading image…
+          </div>
+        </div>
       </Show>
       <Show when={isSearchOpenFor(props.tab.id)}>
         <div style={searchBarStyle} onClick={(e) => e.stopPropagation()}>

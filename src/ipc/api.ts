@@ -51,6 +51,12 @@ export const api = {
   sshDisconnect: (sessionId: string) =>
     invoke<void>("ssh_disconnect", { sessionId }),
 
+  /** Upload a local file to /tmp/bookshell-clip/<basename> on the remote
+   *  host. Returns the absolute remote path. Used by clipboard image paste
+   *  on SSH tabs. */
+  sshUploadFile: (sessionId: string, localPath: string) =>
+    invoke<string>("ssh_upload_file", { sessionId, localPath }),
+
   onSshData: (sessionId: string, cb: (bytes: Uint8Array) => void) =>
     listen<number[]>(`ssh://data/${sessionId}`, (e) =>
       cb(new Uint8Array(e.payload)),

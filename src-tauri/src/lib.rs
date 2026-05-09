@@ -47,6 +47,7 @@ pub fn run() {
             ssh::ssh_write,
             ssh::ssh_resize,
             ssh::ssh_disconnect,
+            ssh::ssh_upload_file,
             config::config_list_connections,
             config::config_save_connection,
             config::config_delete_connection,

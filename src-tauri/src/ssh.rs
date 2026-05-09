@@ -121,6 +121,92 @@ pub async fn run_exec_with_sessions(
     })
 }
 
+/// Run a command on a fresh exec channel, piping `stdin_bytes` into its stdin
+/// and closing stdin with EOF before draining the channel. Used by the file
+/// upload path to write binary data with `cat > path`. Bytes are chunked at
+/// 32 KiB so we don't outrun the SSH window.
+pub async fn run_exec_with_stdin(
+    sessions: &DashMap<String, SessionHandle>,
+    session_id: &str,
+    command: &str,
+    stdin_bytes: &[u8],
+    timeout_ms: u64,
+) -> Result<ExecResult, String> {
+    let session = sessions
+        .get(session_id)
+        .and_then(|h| h.session.clone())
+        .ok_or_else(|| "session not an SSH session (local PTY?)".to_string())?;
+
+    let mut channel = {
+        let g = session.lock().await;
+        g.channel_open_session()
+            .await
+            .map_err(|e| format!("open exec channel: {}", e))?
+    };
+    channel
+        .exec(true, command)
+        .await
+        .map_err(|e| format!("exec: {}", e))?;
+
+    const CHUNK: usize = 32 * 1024;
+    for chunk in stdin_bytes.chunks(CHUNK) {
+        channel
+            .data(chunk)
+            .await
+            .map_err(|e| format!("write stdin: {}", e))?;
+    }
+    channel
+        .eof()
+        .await
+        .map_err(|e| format!("close stdin: {}", e))?;
+
+    let mut stdout: Vec<u8> = Vec::new();
+    let mut stderr: Vec<u8> = Vec::new();
+    let mut exit: Option<u32> = None;
+
+    let timeout = tokio::time::sleep(std::time::Duration::from_millis(timeout_ms));
+    tokio::pin!(timeout);
+
+    let mut got_eof = false;
+    loop {
+        tokio::select! {
+            _ = &mut timeout => break,
+            msg = channel.wait() => {
+                match msg {
+                    Some(ChannelMsg::Data { data }) => {
+                        if stdout.len() < 64 * 1024 {
+                            stdout.extend_from_slice(&data);
+                        }
+                    }
+                    Some(ChannelMsg::ExtendedData { data, ext }) => {
+                        if ext == 1 && stderr.len() < 64 * 1024 {
+                            stderr.extend_from_slice(&data);
+                        }
+                    }
+                    Some(ChannelMsg::ExitStatus { exit_status }) => {
+                        exit = Some(exit_status);
+                        if got_eof { break; }
+                    }
+                    Some(ChannelMsg::Eof) => {
+                        got_eof = true;
+                        if exit.is_some() { break; }
+                    }
+                    Some(ChannelMsg::Close) | None => break,
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    let _ = channel.close().await;
+
+    Ok(ExecResult {
+        stdout: String::from_utf8_lossy(&stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&stderr).into_owned(),
+        exit_code: exit,
+    })
+}
+
 pub enum Cmd {
     Write(Vec<u8>),
     Resize(u32, u32),
@@ -462,4 +548,49 @@ pub async fn ssh_log_path(
         .sessions
         .get(&session_id)
         .map(|h| h.log_path.to_string_lossy().into_owned()))
+}
+
+/// Upload a local file to `/tmp/bookshell-clip/<basename>` on the remote host
+/// piggybacking on the existing SSH session's exec channel. Used by the
+/// clipboard image paste flow on SSH tabs. Returns the absolute remote path
+/// on success.
+#[tauri::command]
+pub async fn ssh_upload_file(
+    state: State<'_, AppState>,
+    session_id: String,
+    local_path: String,
+) -> Result<String, String> {
+    let bytes = tokio::fs::read(&local_path)
+        .await
+        .map_err(|e| format!("read {}: {}", local_path, e))?;
+
+    let basename = std::path::Path::new(&local_path)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| "local path has no filename".to_string())?;
+
+    // Allow only safe characters in the basename — UUID-named clipboard files
+    // satisfy this trivially; reject anything else so the unquoted insertion
+    // into the shell command below stays safe.
+    if !basename
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+    {
+        return Err(format!("unsafe basename: {}", basename));
+    }
+
+    let remote_dir = "/tmp/bookshell-clip";
+    let remote_path = format!("{}/{}", remote_dir, basename);
+    let cmd = format!("mkdir -p {} && cat > {}", remote_dir, remote_path);
+
+    let res = run_exec_with_stdin(&state.sessions, &session_id, &cmd, &bytes, 30_000).await?;
+    match res.exit_code {
+        Some(0) => Ok(remote_path),
+        Some(code) => Err(format!(
+            "remote exit {}: {}",
+            code,
+            res.stderr.trim().chars().take(200).collect::<String>()
+        )),
+        None => Err("remote command did not finish (timeout)".to_string()),
+    }
 }
