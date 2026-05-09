@@ -180,6 +180,50 @@ export function TerminalView(props: Props) {
       }
     }
 
+    // Clipboard image paste (local connections only): when the user pastes
+    // and the clipboard holds an image with no accompanying text, save it as
+    // a PNG to the OS temp dir and paste the quoted path. Mixed text+image
+    // and pure text fall through to xterm's default text paste. SSH tabs
+    // skip this entirely — the saved path wouldn't exist on the remote host.
+    {
+      const ta = term.textarea as HTMLTextAreaElement | null;
+      if (ta) {
+        const ac = new AbortController();
+        ta.addEventListener(
+          "paste",
+          (e) => {
+            const ev = e as ClipboardEvent;
+            if (!props.active) return;
+            const conn = connections().find(
+              (c) => c.id === props.tab.connectionId,
+            );
+            if (conn?.kind !== "local") return;
+            const dt = ev.clipboardData;
+            if (!dt) return;
+            const text = dt.getData("text/plain");
+            const hasImage = Array.from(dt.items).some(
+              (i) => i.kind === "file" && i.type.startsWith("image/"),
+            );
+            if (text || !hasImage) return;
+            ev.preventDefault();
+            ev.stopImmediatePropagation();
+            api
+              .clipboardSaveImage()
+              .then((path) => {
+                if (!path) return;
+                term?.paste(quoteShellPath(path) + " ");
+                term?.focus();
+              })
+              .catch((err) =>
+                console.warn("clipboard image paste failed", err),
+              );
+          },
+          { capture: true, signal: ac.signal },
+        );
+        onCleanup(() => ac.abort());
+      }
+    }
+
     search.onDidChangeResults((e) =>
       setMatches({ resultIndex: e.resultIndex, resultCount: e.resultCount }),
     );

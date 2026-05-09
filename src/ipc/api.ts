@@ -86,6 +86,11 @@ export const api = {
   /** Open an http(s) URL in the user's default browser. */
   urlOpen: (url: string) => invoke<void>("url_open", { url }),
 
+  /** Read an image from the OS clipboard, save it as PNG to a temp file, and
+   *  return the absolute path. Returns null when the clipboard holds no
+   *  image (text-only or empty). */
+  clipboardSaveImage: () => invoke<string | null>("clipboard_save_image"),
+
   // Command buttons
   buttonsList: () => invoke<CommandButton[]>("buttons_list"),
   buttonsSave: (button: CommandButton) =>

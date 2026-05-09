@@ -1,4 +1,5 @@
 mod buttons;
+mod clipboard;
 mod config;
 mod general;
 mod git;
@@ -61,6 +62,7 @@ pub fn run() {
             buttons::buttons_save,
             buttons::buttons_delete,
             buttons::buttons_reorder,
+            clipboard::clipboard_save_image,
             general::general_get,
             general::general_set,
             tabs::tabs_load_state,
