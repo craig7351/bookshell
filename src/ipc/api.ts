@@ -97,6 +97,12 @@ export const api = {
    *  image (text-only or empty). */
   clipboardSaveImage: () => invoke<string | null>("clipboard_save_image"),
 
+  /** Write plain text to the OS clipboard via arboard (avoids WebKitGTK clipboard API hangs). */
+  clipboardWriteText: (text: string) => invoke<void>("clipboard_write_text", { text }),
+
+  /** Read plain text from the OS clipboard. Returns null when empty or image-only. */
+  clipboardReadText: () => invoke<string | null>("clipboard_read_text"),
+
   // Command buttons
   buttonsList: () => invoke<CommandButton[]>("buttons_list"),
   buttonsSave: (button: CommandButton) =>

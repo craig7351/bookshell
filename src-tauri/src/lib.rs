@@ -64,6 +64,8 @@ pub fn run() {
             buttons::buttons_delete,
             buttons::buttons_reorder,
             clipboard::clipboard_save_image,
+            clipboard::clipboard_write_text,
+            clipboard::clipboard_read_text,
             general::general_get,
             general::general_set,
             tabs::tabs_load_state,

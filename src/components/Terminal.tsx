@@ -194,24 +194,26 @@ export function TerminalView(props: Props) {
     //
     // In both cases: local tabs get the local /tmp path; SSH tabs have the
     // PNG uploaded to the remote /tmp first and get the remote path.
-    const pasteImage = async () => {
-      if (!props.active) return;
+    // Returns true if an image was found and pasted, false if clipboard had no image.
+    const pasteImage = async (): Promise<boolean> => {
+      if (!props.active) return false;
       const conn = connections().find((c) => c.id === props.tab.connectionId);
-      if (!conn) return;
+      if (!conn) return false;
       const sid = props.tab.sessionId;
       const localPath = await api.clipboardSaveImage();
-      if (!localPath) return;
+      if (!localPath) return false;
       if (conn.kind === "local") {
         term?.paste(quoteShellPath(localPath) + " ");
         term?.focus();
-        return;
+        return true;
       }
-      if (!sid) return;
+      if (!sid) return false;
       setUploading(true);
       try {
         const remotePath = await api.sshUploadFile(sid, localPath);
         term?.paste(quoteShellPath(remotePath) + " ");
         term?.focus();
+        return true;
       } finally {
         setUploading(false);
       }
@@ -240,14 +242,23 @@ export function TerminalView(props: Props) {
       }
     }
 
-    // Ctrl+Shift+V: explicit image paste shortcut, bypasses paste event.
-    const onCtrlShiftV = (e: KeyboardEvent) => {
+    // Ctrl+Shift+V: paste image if clipboard has one, otherwise paste text.
+    const onCtrlShiftV = async (e: KeyboardEvent) => {
       if (!e.ctrlKey || !e.shiftKey || e.altKey || e.key !== "V") return;
       if (!props.active) return;
       e.preventDefault();
-      pasteImage().catch((err) =>
-        console.warn("clipboard image paste failed", err),
-      );
+      try {
+        const didImage = await pasteImage();
+        if (!didImage) {
+          const text = await api.clipboardReadText();
+          if (text) {
+            term?.paste(text);
+            term?.focus();
+          }
+        }
+      } catch (err) {
+        console.warn("clipboard paste failed", err);
+      }
     };
     window.addEventListener("keydown", onCtrlShiftV);
     onCleanup(() => window.removeEventListener("keydown", onCtrlShiftV));
@@ -299,18 +310,34 @@ export function TerminalView(props: Props) {
       return out.join("\n");
     });
 
-    // Auto-copy on selection: when the user finishes a mouse drag and there is
-    // a non-empty selection, push it to the OS clipboard.
-    const onMouseUp = () => {
+    // Auto-copy on selection: fires when the drag ends inside the terminal.
+    const onMouseUp = (e: MouseEvent) => {
+      if (e.button !== 0) return; // middle/right-click must not overwrite clipboard
       if (!term?.hasSelection()) return;
       const sel = term.getSelection();
       if (!sel) return;
-      navigator.clipboard.writeText(sel).catch((e) =>
+      api.clipboardWriteText(sel).catch((e) =>
         console.warn("clipboard write failed", e),
       );
     };
     host.addEventListener("mouseup", onMouseUp);
     onCleanup(() => host.removeEventListener("mouseup", onMouseUp));
+
+    // Ctrl+Shift+C: explicit copy shortcut. Covers the case where the drag
+    // ends outside the terminal (tab bar, etc.) and mouseup didn't fire on
+    // host. Uses native arboard to avoid WebKitGTK clipboard API hangs.
+    const onCopyKey = (e: KeyboardEvent) => {
+      if (!props.active || !e.ctrlKey || !e.shiftKey || e.altKey || e.key !== "C") return;
+      if (!term?.hasSelection()) return;
+      e.preventDefault();
+      const sel = term.getSelection();
+      if (!sel) return;
+      api.clipboardWriteText(sel).catch((e) =>
+        console.warn("clipboard write failed", e),
+      );
+    };
+    window.addEventListener("keydown", onCopyKey);
+    onCleanup(() => window.removeEventListener("keydown", onCopyKey));
 
     // Middle-click: just suppress the browser's auto-scroll affordance.
     // WebKitGTK already does X11-style primary-selection paste into the
