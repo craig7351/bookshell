@@ -187,7 +187,7 @@ function AboutPane() {
   return (
     <div>
       <div style={{ "font-size": "20px", "font-weight": 600, "margin-bottom": "4px" }}>BOOKSHELL</div>
-      <div style={{ opacity: 0.7, "margin-bottom": "16px" }}>v0.0.1 — Phase 1</div>
+      <div style={{ opacity: 0.7, "margin-bottom": "16px" }}>v1.0.5 — Phase 1</div>
       <div style={{ "font-size": "13px", "line-height": 1.6, opacity: 0.8 }}>
         SSH terminal optimized for Claude Code and other AI agents.
       </div>
