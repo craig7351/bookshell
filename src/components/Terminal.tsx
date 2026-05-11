@@ -181,11 +181,42 @@ export function TerminalView(props: Props) {
       }
     }
 
-    // Clipboard image paste: when the clipboard holds an image with no
-    // accompanying text, save it locally as PNG. On local tabs we paste the
-    // local path directly; on SSH tabs we upload the PNG to
-    // /tmp/bookshell-clip/ on the remote and paste the remote path. Mixed
-    // text+image and pure text fall through to xterm's default text paste.
+    // Clipboard image paste. Two trigger paths:
+    //
+    // 1. Ctrl+V / Shift+Insert (paste event on textarea): skip if text is
+    //    present; otherwise call the native backend which reads the image
+    //    directly from the OS clipboard. The clipboardData.items check is
+    //    intentionally omitted — WebKitGTK never surfaces image MIME types
+    //    in ClipboardEvent.items, so we always let the Rust side decide.
+    //
+    // 2. Ctrl+Shift+V: explicit shortcut for the same path, useful when
+    //    WebKitGTK doesn't fire a paste event for image-only clipboard content.
+    //
+    // In both cases: local tabs get the local /tmp path; SSH tabs have the
+    // PNG uploaded to the remote /tmp first and get the remote path.
+    const pasteImage = async () => {
+      if (!props.active) return;
+      const conn = connections().find((c) => c.id === props.tab.connectionId);
+      if (!conn) return;
+      const sid = props.tab.sessionId;
+      const localPath = await api.clipboardSaveImage();
+      if (!localPath) return;
+      if (conn.kind === "local") {
+        term?.paste(quoteShellPath(localPath) + " ");
+        term?.focus();
+        return;
+      }
+      if (!sid) return;
+      setUploading(true);
+      try {
+        const remotePath = await api.sshUploadFile(sid, localPath);
+        term?.paste(quoteShellPath(remotePath) + " ");
+        term?.focus();
+      } finally {
+        setUploading(false);
+      }
+    };
+
     {
       const ta = term.textarea as HTMLTextAreaElement | null;
       if (ta) {
@@ -195,38 +226,11 @@ export function TerminalView(props: Props) {
           (e) => {
             const ev = e as ClipboardEvent;
             if (!props.active) return;
-            const conn = connections().find(
-              (c) => c.id === props.tab.connectionId,
-            );
-            if (!conn) return;
-            const dt = ev.clipboardData;
-            if (!dt) return;
-            const text = dt.getData("text/plain");
-            const hasImage = Array.from(dt.items).some(
-              (i) => i.kind === "file" && i.type.startsWith("image/"),
-            );
-            if (text || !hasImage) return;
+            const text = ev.clipboardData?.getData("text/plain") ?? "";
+            if (text) return; // has text → let xterm handle normally
             ev.preventDefault();
             ev.stopImmediatePropagation();
-            const sid = props.tab.sessionId;
-            (async () => {
-              const localPath = await api.clipboardSaveImage();
-              if (!localPath) return;
-              if (conn.kind === "local") {
-                term?.paste(quoteShellPath(localPath) + " ");
-                term?.focus();
-                return;
-              }
-              if (!sid) return;
-              setUploading(true);
-              try {
-                const remotePath = await api.sshUploadFile(sid, localPath);
-                term?.paste(quoteShellPath(remotePath) + " ");
-                term?.focus();
-              } finally {
-                setUploading(false);
-              }
-            })().catch((err) =>
+            pasteImage().catch((err) =>
               console.warn("clipboard image paste failed", err),
             );
           },
@@ -235,6 +239,18 @@ export function TerminalView(props: Props) {
         onCleanup(() => ac.abort());
       }
     }
+
+    // Ctrl+Shift+V: explicit image paste shortcut, bypasses paste event.
+    const onCtrlShiftV = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || !e.shiftKey || e.altKey || e.key !== "V") return;
+      if (!props.active) return;
+      e.preventDefault();
+      pasteImage().catch((err) =>
+        console.warn("clipboard image paste failed", err),
+      );
+    };
+    window.addEventListener("keydown", onCtrlShiftV);
+    onCleanup(() => window.removeEventListener("keydown", onCtrlShiftV));
 
     search.onDidChangeResults((e) =>
       setMatches({ resultIndex: e.resultIndex, resultCount: e.resultCount }),
