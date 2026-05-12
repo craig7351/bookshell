@@ -46,6 +46,7 @@ export function SettingsDialog(props: Props) {
     { id: "connections", label: "Connections", icon: "🔌", render: () => <ConnectionsPane /> },
     { id: "buttons", label: "Command Buttons", icon: "🔘", render: () => <ButtonsPane /> },
     { id: "logging", label: "Logging", icon: "📝", render: () => <LoggingPane logDir={logDir()} /> },
+    { id: "hotkeys", label: "Hotkeys", icon: "⌨", render: () => <HotkeysPane /> },
     { id: "backup", label: "Backup", icon: "💾", render: () => <BackupPane /> },
     { id: "about", label: "About", icon: "ℹ", render: () => <AboutPane /> },
   ];
@@ -158,6 +159,126 @@ function GeneralPane() {
       <div style={{ "grid-column": "1 / -1", "margin-top": "16px", opacity: 0.6, "font-size": "12px" }}>
         Theme picker, font family, configurable hotkeys and tab session restore will land here later.
       </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Hotkeys pane — read-only reference of all keyboard shortcuts
+// ──────────────────────────────────────────────────────────────────────
+
+interface HotkeyGroup {
+  title: string;
+  rows: { keys: string[]; desc: string; note?: string }[];
+}
+
+const HOTKEY_GROUPS: HotkeyGroup[] = [
+  {
+    title: "Global — always active",
+    rows: [
+      { keys: ["Ctrl", "Shift", "P"], desc: "Toggle AI Passthrough mode", note: "only hotkey captured in Passthrough ON" },
+    ],
+  },
+  {
+    title: "Global — active when Passthrough OFF",
+    rows: [
+      { keys: ["Ctrl", "Shift", "T"], desc: "New tab (open Connection dialog)" },
+      { keys: ["Ctrl", "Shift", "W"], desc: "Close active tab" },
+      { keys: ["Ctrl", "Tab"], desc: "Next tab" },
+      { keys: ["Ctrl", "Shift", "Tab"], desc: "Previous tab" },
+      { keys: ["Ctrl", "1–9"], desc: "Jump to tab by index" },
+      { keys: ["Shift", "↑ / ↓"], desc: "Previous / next tab (capture phase)" },
+      { keys: ["Ctrl", "PageUp / PageDown"], desc: "Previous / next tab (capture phase)" },
+      { keys: ["Ctrl", "F"], desc: "Open / close terminal search" },
+    ],
+  },
+  {
+    title: "Terminal",
+    rows: [
+      { keys: ["Ctrl", "Shift", "C"], desc: "Copy selected text" },
+      { keys: ["Ctrl", "Shift", "V"], desc: "Paste (image if available, otherwise text)" },
+    ],
+  },
+  {
+    title: "Dialogs & panels",
+    rows: [
+      { keys: ["Escape"], desc: "Close dialog / panel (or back out of sub-state)" },
+    ],
+  },
+];
+
+function Kbd(p: { label: string }) {
+  return (
+    <kbd style={{
+      display: "inline-block",
+      padding: "2px 7px",
+      background: "rgba(255,255,255,0.07)",
+      border: `1px solid rgba(255,255,255,0.18)`,
+      "border-radius": "5px",
+      "font-family": "monospace",
+      "font-size": "11px",
+      "line-height": "1.6",
+      "white-space": "nowrap",
+    }}>{p.label}</kbd>
+  );
+}
+
+function HotkeysPane() {
+  return (
+    <div style={{ display: "flex", "flex-direction": "column", gap: "20px" }}>
+      <For each={HOTKEY_GROUPS}>
+        {(group) => (
+          <div>
+            <div style={{
+              "font-size": "11px",
+              "font-weight": 600,
+              color: C.text3,
+              "letter-spacing": "0.06em",
+              "text-transform": "uppercase",
+              "margin-bottom": "8px",
+            }}>
+              {group.title}
+            </div>
+            <div style={{
+              background: C.bg3,
+              border: `1px solid ${C.borderSub}`,
+              "border-radius": "8px",
+              overflow: "hidden",
+            }}>
+              <For each={group.rows}>
+                {(row, i) => (
+                  <div style={{
+                    display: "flex",
+                    "align-items": "center",
+                    gap: "12px",
+                    padding: "8px 14px",
+                    "border-top": i() === 0 ? "none" : `1px solid ${C.borderSub}`,
+                  }}>
+                    <div style={{ display: "flex", gap: "4px", "align-items": "center", "min-width": "210px", "flex-shrink": 0 }}>
+                      <For each={row.keys}>
+                        {(k, ki) => (
+                          <>
+                            {ki() > 0 && <span style={{ opacity: 0.4, "font-size": "11px" }}>+</span>}
+                            <Kbd label={k} />
+                          </>
+                        )}
+                      </For>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ "font-size": "13px" }}>{row.desc}</span>
+                      {row.note && (
+                        <span style={{ "font-size": "11px", opacity: 0.5, "margin-left": "8px" }}>
+                          ({row.note})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </For>
+            </div>
+          </div>
+        )}
+      </For>
     </div>
   );
 }

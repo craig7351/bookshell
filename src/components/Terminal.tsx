@@ -150,6 +150,14 @@ export function TerminalView(props: Props) {
     term.open(host);
     fit.fit();
 
+    // Ctrl+F must reach App.tsx's search handler. xterm would otherwise swallow
+    // it in the capture phase and forward ^F to the shell. Returning false here
+    // tells xterm to skip the event entirely and let it bubble normally.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "f") return false;
+      return true;
+    });
+
     // WebKitGTK + IME (fcitx5 chewing/pinyin/ibus) workaround: xterm's
     // composition handling on Linux WebKit emits the committed text twice
     // (once via compositionend, once via the trailing input event). Take over
