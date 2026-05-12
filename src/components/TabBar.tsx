@@ -240,6 +240,9 @@ export function TabBar(props: Props) {
             <Show when={t.passthrough}>
               <span title="AI passthrough on" style={{ "font-size": "11px" }}>🤖</span>
             </Show>
+            <Show when={t.cwd}>
+              <span title={`cwd: ${t.cwd}`} style={{ "font-size": "10px" }}>📍</span>
+            </Show>
             <Show when={t.icon}>{(ic) => <span>{ic()}</span>}</Show>
             <Show
               when={renamingId() === t.id}
