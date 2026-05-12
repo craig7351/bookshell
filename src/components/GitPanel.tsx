@@ -674,7 +674,7 @@ function TabBtn(p: { active: boolean; onClick: () => void; children: string }) {
 }
 
 const modalHeader = {
-  padding: "10px 16px",
+  padding: "10px 44px 10px 16px",
   "border-bottom": `1px solid ${C.border}`,
   display: "flex",
   "align-items": "center",
