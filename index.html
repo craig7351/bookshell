@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BOOKSHELL</title>
     <link rel="stylesheet" href="/node_modules/@xterm/xterm/css/xterm.css" />
+    <link rel="stylesheet" href="/node_modules/highlight.js/styles/github-dark.css" />
     <style>
       html, body, #root {
         height: 100%; margin: 0;
@@ -34,48 +35,53 @@
         margin: 1.2em 0 0.4em;
         font-weight: 600;
         line-height: 1.3;
-        color: #f2f2f7;
       }
-      .md-viewer h1 { font-size: 1.7em; border-bottom: 1px solid #3a3a3c; padding-bottom: 0.3em; }
-      .md-viewer h2 { font-size: 1.35em; border-bottom: 1px solid #3a3a3c; padding-bottom: 0.2em; }
-      .md-viewer h3 { font-size: 1.1em; }
+      .md-viewer h1 { font-size: 1.7em; color: #5ac8fa; border-bottom: 1px solid #3a3a3c; padding-bottom: 0.3em; }
+      .md-viewer h2 { font-size: 1.35em; color: #0a84ff; border-bottom: 1px solid #3a3a3c; padding-bottom: 0.2em; }
+      .md-viewer h3 { font-size: 1.1em; color: #30d158; }
+      .md-viewer h4 { color: #ff9f0a; }
+      .md-viewer h5, .md-viewer h6 { color: #bf5af2; }
       .md-viewer p { margin: 0.7em 0; }
+      .md-viewer strong { color: #ffd60a; }
+      .md-viewer em { color: #ff9f0a; font-style: italic; }
       .md-viewer a { color: #0a84ff; text-decoration: none; }
-      .md-viewer a:hover { text-decoration: underline; }
+      .md-viewer a:hover { color: #5ac8fa; text-decoration: underline; }
       .md-viewer code {
-        background: #2c2c2e;
-        border: 1px solid #3a3a3c;
+        background: rgba(10, 132, 255, 0.12);
+        border: 1px solid rgba(10, 132, 255, 0.25);
         border-radius: 4px;
         padding: 0.15em 0.4em;
         font-size: 0.88em;
         font-family: "SF Mono", "JetBrains Mono", "Cascadia Code", monospace;
+        color: #5ac8fa;
       }
       .md-viewer pre {
-        background: #1e1e20;
         border: 1px solid #3a3a3c;
         border-radius: 8px;
-        padding: 14px 16px;
         overflow-x: auto;
         margin: 1em 0;
-      }
-      .md-viewer pre code {
-        background: none;
-        border: none;
         padding: 0;
+      }
+      .md-viewer pre code.hljs {
+        border-radius: 8px;
         font-size: 0.85em;
-        color: #e0e0e0;
+        font-family: "SF Mono", "JetBrains Mono", "Cascadia Code", monospace;
+        padding: 14px 16px;
       }
       .md-viewer blockquote {
-        border-left: 3px solid #48484a;
+        border-left: 3px solid #0a84ff;
         margin: 0.8em 0;
         padding: 0.2em 1em;
         color: #98989d;
+        background: rgba(10, 132, 255, 0.06);
+        border-radius: 0 6px 6px 0;
       }
       .md-viewer ul, .md-viewer ol { padding-left: 1.6em; margin: 0.5em 0; }
       .md-viewer li { margin: 0.25em 0; }
+      .md-viewer li::marker { color: #0a84ff; }
       .md-viewer table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 13px; }
       .md-viewer th, .md-viewer td { border: 1px solid #3a3a3c; padding: 6px 12px; text-align: left; }
-      .md-viewer th { background: #2c2c2e; font-weight: 600; }
+      .md-viewer th { background: rgba(10, 132, 255, 0.15); color: #5ac8fa; font-weight: 600; }
       .md-viewer tr:nth-child(even) { background: rgba(255,255,255,0.03); }
       .md-viewer img { max-width: 100%; border-radius: 6px; }
       .md-viewer hr { border: none; border-top: 1px solid #3a3a3c; margin: 1.5em 0; }

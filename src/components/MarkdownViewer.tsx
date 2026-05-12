@@ -1,31 +1,38 @@
 import { createEffect, createSignal, onMount, Show } from "solid-js";
 import { marked, type Renderer } from "marked";
 import mermaid from "mermaid";
+import hljs from "highlight.js";
 import { C } from "../theme";
 import { api } from "../ipc/api";
 
 mermaid.initialize({
   startOnLoad: false,
-  theme: "dark",
+  theme: "base",
   themeVariables: {
-    darkMode: true,
+    primaryColor: "#0a84ff",
+    primaryTextColor: "#ffffff",
+    primaryBorderColor: "#0a84ff",
+    lineColor: "#98989d",
+    secondaryColor: "#30d158",
+    tertiaryColor: "#ff9f0a",
     background: "#1c1c1e",
     mainBkg: "#2c2c2e",
     nodeBorder: "#48484a",
-    lineColor: "#98989d",
-    primaryTextColor: "#f2f2f7",
-    secondaryTextColor: "#ebebf5",
-    tertiaryTextColor: "#ebebf5",
+    clusterBkg: "#1c1c1e",
+    titleColor: "#f2f2f7",
+    edgeLabelBackground: "#2c2c2e",
   },
 });
 
-// Custom renderer: mermaid code blocks → placeholder divs rendered later.
+// Custom renderer: mermaid → placeholder, others → highlight.js.
 const renderer: Partial<Renderer> = {
   code({ text, lang }) {
     if (lang === "mermaid") {
       return `<div class="mermaid-pending" data-graph="${encodeURIComponent(text)}"></div>`;
     }
-    return `<pre><code class="lang-${lang ?? ""}">${text}</code></pre>`;
+    const language = lang && hljs.getLanguage(lang) ? lang : "plaintext";
+    const highlighted = hljs.highlight(text, { language }).value;
+    return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`;
   },
 };
 marked.use({ renderer });
@@ -90,4 +97,3 @@ export function MarkdownViewer(props: Props) {
     </div>
   );
 }
-
