@@ -97,8 +97,8 @@ export function SideTerminalPanel() {
             </Show>
           </div>
           <div style={{ flex: 1, "min-height": 0, position: "relative" }}>
-            <Show when={sid()}>
-              {(s) => <SideTerminalView sessionId={s()} parentTabId={tabId()} />}
+            <Show when={sid()} keyed>
+              {(s) => <SideTerminalView sessionId={s} parentTabId={tabId()} />}
             </Show>
           </div>
           <CloseX onClose={() => closeSideTerm(tabId())} title="Close side terminal" />
@@ -164,8 +164,8 @@ export function SideTerminalPanel() {
           </Show>
         </div>
         <div style={{ flex: 1, "min-height": 0, position: "relative" }}>
-          <Show when={sid()}>
-            {(s) => <SideTerminalView sessionId={s()} parentTabId={tabId()} />}
+          <Show when={sid()} keyed>
+            {(s) => <SideTerminalView sessionId={s} parentTabId={tabId()} />}
           </Show>
         </div>
         <CloseX onClose={() => closeSideTerm(tabId())} title="Close side terminal" />
