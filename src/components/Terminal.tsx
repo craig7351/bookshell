@@ -1,4 +1,5 @@
-import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createStore } from "solid-js/store";
 import { C, xtermTheme } from "../theme";
 import { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -35,6 +36,7 @@ export function TerminalView(props: Props) {
   let term: Terminal | undefined;
   let fit: FitAddon | undefined;
   let search: SearchAddon | undefined;
+  let highlightAddons: SearchAddon[] = [];
   let searchInputRef: HTMLInputElement | undefined;
 
   const [query, setQuery] = createSignal("");
@@ -42,6 +44,13 @@ export function TerminalView(props: Props) {
   const [reconnecting, setReconnecting] = createSignal(false);
   const [dragOver, setDragOver] = createSignal<"local" | "blocked" | null>(null);
   const [uploading, setUploading] = createSignal(false);
+  const [showHighlight, setShowHighlight] = createSignal(false);
+
+  interface HighlightSlot { color: string; keyword: string; }
+  const DEFAULT_HIGHLIGHT_COLORS = ["#ff453a", "#ffd60a", "#30d158", "#0a84ff", "#bf5af2"];
+  const [slots, setSlots] = createStore<HighlightSlot[]>(
+    DEFAULT_HIGHLIGHT_COLORS.map((color) => ({ color, keyword: "" })),
+  );
   // Reactive flag flipped at the end of onMount. Effects that need a live
   // `term` instance must depend on this — SolidJS runs createEffect bodies
   // before onMount callbacks, so reading `term` directly in an effect's
@@ -122,6 +131,32 @@ export function TerminalView(props: Props) {
   const findNext = () => runSearch("next");
   const findPrev = () => runSearch("prev");
 
+  function applyHighlights() {
+    slots.forEach((slot, i) => {
+      const addon = highlightAddons[i];
+      if (!addon) return;
+      addon.clearDecorations();
+      const kw = slot.keyword.trim();
+      if (!kw) return;
+      addon.findNext(kw, {
+        caseSensitive: false,
+        wholeWord: false,
+        regex: false,
+        decorations: {
+          matchBackground: slot.color + "70",
+          activeMatchBackground: slot.color + "70",
+          matchOverviewRuler: slot.color,
+          activeMatchColorOverviewRuler: slot.color,
+        },
+      });
+    });
+  }
+
+  function clearHighlights() {
+    highlightAddons.forEach((a) => a.clearDecorations());
+    DEFAULT_HIGHLIGHT_COLORS.forEach((color, i) => setSlots(i, { color, keyword: "" }));
+  }
+
   onMount(() => {
     term = new Terminal({
       cursorBlink: true,
@@ -135,6 +170,11 @@ export function TerminalView(props: Props) {
     search = new SearchAddon();
     term.loadAddon(fit);
     term.loadAddon(search);
+    highlightAddons = DEFAULT_HIGHLIGHT_COLORS.map(() => {
+      const a = new SearchAddon();
+      term!.loadAddon(a);
+      return a;
+    });
     // Hand URL clicks off to the OS default browser via Tauri command — opening
     // them inside this WebView would navigate away from the app.
     term.loadAddon(
@@ -621,6 +661,13 @@ export function TerminalView(props: Props) {
           <button onClick={findPrev} style={navBtn} title="Previous (Shift+Enter)">▲</button>
           <button onClick={findNext} style={navBtn} title="Next (Enter)">▼</button>
           <button
+            onClick={() => setShowHighlight((v) => !v)}
+            style={toggleBtn(showHighlight())}
+            title="Keyword highlight"
+          >
+            🎨
+          </button>
+          <button
             onClick={() => {
               closeSearch();
               term?.focus();
@@ -630,6 +677,59 @@ export function TerminalView(props: Props) {
           >
             ×
           </button>
+        </div>
+      </Show>
+      <Show when={showHighlight()}>
+        <div style={highlightPanelStyle} onClick={(e) => e.stopPropagation()}>
+          <div style={{ display: "flex", "align-items": "center", "margin-bottom": "8px" }}>
+            <span style={{ "font-size": "12px", "font-weight": 600, color: C.text }}>Keyword Highlight</span>
+            <button onClick={() => setShowHighlight(false)} style={{ ...navBtn, "margin-left": "auto" }}>×</button>
+          </div>
+          <For each={slots}>
+            {(slot, i) => {
+              let colorInputEl!: HTMLInputElement;
+              return (
+                <div style={{ display: "flex", gap: "6px", "align-items": "center", "margin-bottom": "5px" }}>
+                  <div
+                    onClick={() => colorInputEl.click()}
+                    title="Pick colour"
+                    style={{
+                      width: "18px", height: "18px",
+                      "border-radius": "50%",
+                      background: slot.color,
+                      cursor: "pointer",
+                      border: "2px solid rgba(255,255,255,0.25)",
+                      "flex-shrink": 0,
+                    }}
+                  />
+                  <input
+                    ref={colorInputEl}
+                    type="color"
+                    value={slot.color}
+                    style={{ display: "none" }}
+                    onInput={(e) => setSlots(i(), "color", e.currentTarget.value)}
+                  />
+                  <input
+                    type="text"
+                    placeholder={`Keyword ${i() + 1}`}
+                    value={slot.keyword}
+                    onInput={(e) => setSlots(i(), "keyword", e.currentTarget.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") applyHighlights(); }}
+                    style={{ ...searchInputStyle, flex: 1, width: "auto" }}
+                  />
+                </div>
+              );
+            }}
+          </For>
+          <div style={{ display: "flex", gap: "6px", "justify-content": "flex-end", "margin-top": "8px" }}>
+            <button onClick={clearHighlights} style={navBtn}>Clear</button>
+            <button
+              onClick={applyHighlights}
+              style={{ ...navBtn, background: C.accentBg, color: C.accent, border: `1px solid ${C.accentBdr}` }}
+            >
+              Apply
+            </button>
+          </div>
         </div>
       </Show>
     </div>
@@ -650,6 +750,20 @@ const searchBarStyle = {
   padding: "5px 8px",
   "box-shadow": "0 8px 24px rgba(0,0,0,0.5)",
   "z-index": "10",
+} as const;
+
+const highlightPanelStyle = {
+  position: "absolute",
+  top: "58px",
+  right: "14px",
+  background: "rgba(28,28,30,0.95)",
+  "backdrop-filter": "blur(16px) saturate(160%)",
+  border: `1px solid ${C.border}`,
+  "border-radius": "10px",
+  padding: "10px 12px",
+  "box-shadow": "0 8px 24px rgba(0,0,0,0.5)",
+  "z-index": "10",
+  width: "260px",
 } as const;
 
 const searchInputStyle = {
