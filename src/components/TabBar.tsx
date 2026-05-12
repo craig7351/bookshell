@@ -1,4 +1,8 @@
 import { createSignal, For, Show } from "solid-js";
+
+const [tabBarWidth, setTabBarWidth] = createSignal(190);
+const MIN_W = 140;
+const MAX_W = 400;
 import { C } from "../theme";
 import {
   activeTabId,
@@ -58,16 +62,33 @@ const ICONS = [
 ];
 
 function shortCwd(p: string): string {
-  if (p.length <= 24) return p;
-  return "…" + p.slice(p.length - 23);
+  if (p.length <= 28) return p;
+  return "…" + p.slice(p.length - 27);
 }
 
 export function TabBar(props: Props) {
   const [menu, setMenu] = createSignal<{ x: number; y: number; tab: Tab } | null>(null);
   const [renamingId, setRenamingId] = createSignal<string | null>(null);
   const [draggingId, setDraggingId] = createSignal<string | null>(null);
+  const [resizing, setResizing] = createSignal(false);
   /** Tab id under cursor (or "__end__"). Null when not over any drop target. */
   const [dropTargetId, setDropTargetId] = createSignal<string | null>(null);
+
+  function startResize(ev: MouseEvent) {
+    ev.preventDefault();
+    setResizing(true);
+    const startX = ev.clientX;
+    const startW = tabBarWidth();
+    const onMove = (e: MouseEvent) =>
+      setTabBarWidth(Math.max(MIN_W, Math.min(MAX_W, startW + (e.clientX - startX))));
+    const onUp = () => {
+      setResizing(false);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
 
   /** Pointer-event-based drag. HTML5 drag-and-drop is unreliable in WebView2 —
    *  events frequently don't fire, so we hand-roll it with mousedown/move/up. */
@@ -178,6 +199,7 @@ export function TabBar(props: Props) {
   }
 
   return (
+    <div style={{ display: "flex", width: `${tabBarWidth()}px`, "flex-shrink": 0 }}>
     <div style={containerStyle}>
       <For each={tabs()}>
         {(t) => (
@@ -211,14 +233,12 @@ export function TabBar(props: Props) {
             }}
             title={t.errorMessage ?? t.name}
           >
+          <div style={tabTopRowStyle}>
             <span style={{ color: statusColor[t.status], "font-size": "10px", width: "12px" }}>
               {statusGlyph[t.status]}
             </span>
             <Show when={t.passthrough}>
               <span title="AI passthrough on" style={{ "font-size": "11px" }}>🤖</span>
-            </Show>
-            <Show when={t.cwd}>
-              <span title={`cwd: ${t.cwd}`} style={{ "font-size": "10px" }}>📍</span>
             </Show>
             <Show when={t.icon}>{(ic) => <span>{ic()}</span>}</Show>
             <Show
@@ -254,6 +274,12 @@ export function TabBar(props: Props) {
               ×
             </button>
           </div>
+          <Show when={t.cwd}>
+            <div style={cwdRowStyle}>
+              {shortCwd(t.cwd!)}
+            </div>
+          </Show>
+          </div>
         )}
       </For>
       <div
@@ -280,25 +306,37 @@ export function TabBar(props: Props) {
         )}
       </Show>
     </div>
+    {/* right-edge drag handle */}
+    <div
+      onMouseDown={startResize}
+      style={{
+        width: "4px",
+        cursor: "col-resize",
+        background: resizing() ? C.accent : "transparent",
+        "border-right": `1px solid ${C.border}`,
+        "flex-shrink": 0,
+        transition: "background 0.15s",
+      }}
+      title="Drag to resize"
+    />
+    </div>
   );
 }
 
 const containerStyle = {
-  width: "190px",
+  flex: 1,
   background: C.bg2,
-  "border-right": `1px solid ${C.border}`,
   display: "flex",
   "flex-direction": "column",
   padding: "6px 4px",
   gap: "1px",
-  overflow: "auto",
-  "flex-shrink": 0,
+  "overflow-y": "auto",
+  "min-width": 0,
 } as const;
 
 const tabStyle = {
   display: "flex",
-  "align-items": "center",
-  gap: "5px",
+  "flex-direction": "column",
   padding: "5px 8px",
   "border-radius": "6px",
   cursor: "grab",
@@ -307,6 +345,23 @@ const tabStyle = {
   "border-left": "3px solid transparent",
   "user-select": "none",
   transition: "background 0.1s",
+} as const;
+
+const tabTopRowStyle = {
+  display: "flex",
+  "align-items": "center",
+  gap: "5px",
+  width: "100%",
+} as const;
+
+const cwdRowStyle = {
+  "font-size": "10px",
+  color: C.text3,
+  "white-space": "nowrap",
+  overflow: "hidden",
+  "text-overflow": "ellipsis",
+  "padding-left": "17px",
+  "margin-top": "2px",
 } as const;
 
 const renameInputStyle = {
