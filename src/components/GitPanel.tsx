@@ -229,7 +229,7 @@ function ErrorBox(p: { tabId: string; message: string }) {
   );
 }
 
-function Header(p: { loading: boolean }) {
+function Header(_p: { loading: boolean }) {
   return (
     <div
       style={{
@@ -242,9 +242,6 @@ function Header(p: { loading: boolean }) {
       }}
     >
       <strong style={{ "font-size": "12px", color: C.text2 }}>🌿 Git view</strong>
-      <Show when={p.loading}>
-        <span style={{ "margin-left": "auto", "font-size": "11px", color: C.text3 }}>Loading…</span>
-      </Show>
     </div>
   );
 }

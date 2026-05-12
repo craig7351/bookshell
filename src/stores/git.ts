@@ -14,6 +14,8 @@ import {
 
 /** unlisten callbacks for git://changed events, keyed by tabId */
 const changeListeners: Record<string, () => void> = {};
+/** debounce timers for watcher callbacks, keyed by tabId */
+const watchDebounce: Record<string, ReturnType<typeof setTimeout>> = {};
 
 interface GitPanelState {
   /** tabIds with the panel toggled on */
@@ -93,7 +95,8 @@ async function startGitWatch(tabId: string) {
   try {
     await api.gitWatchStart(tabId, tab.sessionId, cwd, pollSecs);
     const unlisten = await api.onGitChanged(tabId, () => {
-      refreshGitWithCwd(tabId, cwd);
+      clearTimeout(watchDebounce[tabId]);
+      watchDebounce[tabId] = setTimeout(() => refreshGitWithCwd(tabId, cwd), 500);
     });
     changeListeners[tabId] = unlisten;
   } catch (e) {
