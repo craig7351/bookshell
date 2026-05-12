@@ -1,4 +1,4 @@
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { C } from "../theme";
 import {
   closeViewer,
@@ -17,6 +17,11 @@ import { layoutMode, layoutVertical } from "../stores/layout";
 import { activeTabId, captureCwdViaPty, setTabCwd } from "../stores/tabs";
 import type { GitStatusEntry } from "../ipc/api";
 import { CloseX } from "./CloseX";
+import { MarkdownViewer } from "./MarkdownViewer";
+
+function isMdPath(p: string | null | undefined): boolean {
+  return !!p && p.toLowerCase().endsWith(".md");
+}
 
 export function GitPanel() {
   const tabId = () => activeTabId() ?? "";
@@ -454,22 +459,45 @@ function ViewerModal() {
 }
 
 function DiffViewerContent() {
+  const [showPreview, setShowPreview] = createSignal(false);
   const v = () => {
     const x = viewer();
     return x.kind === "diff" ? x : null;
   };
+  const isMd = () => isMdPath(v()?.path);
+  // Reset preview tab whenever a different file is opened.
+  createEffect(on(() => v()?.path, () => setShowPreview(false), { defer: true }));
+
   return (
     <Show when={v()}>
       {(d) => (
         <>
           <div style={modalHeader}>
             <strong style={{ "font-size": "14px", "font-family": "monospace" }}>{d().title}</strong>
-          </div>
-          <div style={diffScrollArea}>
-            <Show when={d().loading} fallback={<DiffBody body={d().body} />}>
-              <div style={{ opacity: 0.6 }}>Loading…</div>
+            <Show when={isMd()}>
+              <div style={{ "margin-left": "auto", display: "flex", gap: "4px" }}>
+                <TabBtn active={!showPreview()} onClick={() => setShowPreview(false)}>Diff</TabBtn>
+                <TabBtn active={showPreview()} onClick={() => setShowPreview(true)}>Preview</TabBtn>
+              </div>
             </Show>
           </div>
+          <Show
+            when={showPreview() && isMd()}
+            fallback={
+              <div style={diffScrollArea}>
+                <Show when={d().loading} fallback={<DiffBody body={d().body} />}>
+                  <div style={{ opacity: 0.6 }}>Loading…</div>
+                </Show>
+              </div>
+            }
+          >
+            <MarkdownViewer
+              sessionId={d().sessionId}
+              cwd={d().cwd}
+              path={d().path}
+              rev={d().mdRev}
+            />
+          </Show>
         </>
       )}
     </Show>
@@ -477,10 +505,15 @@ function DiffViewerContent() {
 }
 
 function CommitViewerContent() {
+  const [showPreview, setShowPreview] = createSignal(false);
   const v = () => {
     const x = viewer();
     return x.kind === "commit" ? x : null;
   };
+  const isMd = () => isMdPath(v()?.selectedPath);
+  // Reset preview tab when a different file is selected.
+  createEffect(on(() => v()?.selectedPath, () => setShowPreview(false), { defer: true }));
+
   return (
     <Show when={v()}>
       {(c) => (
@@ -492,6 +525,12 @@ function CommitViewerContent() {
             <span style={{ flex: 1, overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
               {c().detail?.subject ?? c().rev}
             </span>
+            <Show when={isMd()}>
+              <div style={{ display: "flex", gap: "4px", "flex-shrink": 0 }}>
+                <TabBtn active={!showPreview()} onClick={() => setShowPreview(false)}>Diff</TabBtn>
+                <TabBtn active={showPreview()} onClick={() => setShowPreview(true)}>Preview</TabBtn>
+              </div>
+            </Show>
           </div>
           <Show when={c().error}>
             <div style={{ padding: "12px 16px", color: "#f38ba8" }}>{c().error}</div>
@@ -507,20 +546,32 @@ function CommitViewerContent() {
                   <CommitFileList
                     detail={d()}
                     selected={c().selectedPath}
-                    onSelect={(p) => selectCommitFile(p)}
+                    onSelect={(p) => { selectCommitFile(p); setShowPreview(false); }}
                   />
-                  <div style={diffScrollArea}>
-                    <Show
-                      when={c().fileLoading}
-                      fallback={
-                        <Show when={c().selectedPath} fallback={<div style={{ opacity: 0.6 }}>Select a file on the left.</div>}>
-                          <DiffBody body={c().fileDiff} />
+                  <Show
+                    when={showPreview() && isMd() && c().selectedPath}
+                    fallback={
+                      <div style={diffScrollArea}>
+                        <Show
+                          when={c().fileLoading}
+                          fallback={
+                            <Show when={c().selectedPath} fallback={<div style={{ opacity: 0.6 }}>Select a file on the left.</div>}>
+                              <DiffBody body={c().fileDiff} />
+                            </Show>
+                          }
+                        >
+                          <div style={{ opacity: 0.6 }}>Loading diff…</div>
                         </Show>
-                      }
-                    >
-                      <div style={{ opacity: 0.6 }}>Loading diff…</div>
-                    </Show>
-                  </div>
+                      </div>
+                    }
+                  >
+                    <MarkdownViewer
+                      sessionId={c().sessionId}
+                      cwd={c().cwd}
+                      path={c().selectedPath!}
+                      rev={c().rev}
+                    />
+                  </Show>
                 </div>
               </>
             )}
@@ -600,6 +651,26 @@ function commitFileColor(status: string): string {
   if (status.startsWith("R")) return C.purple;
   if (status.startsWith("C")) return "#5ac8fa";
   return C.text;
+}
+
+function TabBtn(p: { active: boolean; onClick: () => void; children: string }) {
+  return (
+    <button
+      onClick={p.onClick}
+      style={{
+        background: p.active ? C.accent : C.bg3,
+        color: p.active ? "#fff" : C.text2,
+        border: "none",
+        "border-radius": "6px",
+        padding: "3px 10px",
+        "font-size": "11px",
+        "font-weight": p.active ? 600 : 400,
+        cursor: "pointer",
+      }}
+    >
+      {p.children}
+    </button>
+  );
 }
 
 const modalHeader = {

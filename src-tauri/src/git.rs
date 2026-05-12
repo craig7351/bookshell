@@ -525,6 +525,65 @@ pub async fn git_show_untracked(
     Ok(res.stdout)
 }
 
+/// Return the raw UTF-8 content of a file from the git object store.
+///
+/// `rev`:
+///   - `None`       → working-tree file (reads from disk / SSH cat)
+///   - `"staged"`   → index version (`git show :<path>`)
+///   - any string   → specific commit (`git show <rev>:<path>`)
+#[tauri::command]
+pub async fn git_show_file_content(
+    state: State<'_, AppState>,
+    session_id: String,
+    cwd: String,
+    path: String,
+    rev: Option<String>,
+) -> Result<String, String> {
+    match rev.as_deref() {
+        None => {
+            // Working-tree / untracked: read the actual file on disk.
+            // Paths from `git status --porcelain` are relative to the repo root,
+            // so resolve the root first.
+            let root_res = run_git(
+                &state, &session_id, &cwd,
+                &["rev-parse", "--show-toplevel"],
+                5000,
+            ).await?;
+            let root = root_res.stdout.trim().to_string();
+            if root.is_empty() {
+                return Err("could not determine repo root".into());
+            }
+            let abs = format!("{}/{}", root, path);
+            if is_local_session(&state, &session_id) {
+                let bytes = tokio::fs::read(&abs).await
+                    .map_err(|e| format!("read {abs}: {e}"))?;
+                String::from_utf8(bytes)
+                    .map_err(|_| "file is not valid UTF-8".into())
+            } else {
+                let abs_q = shell_quote(&abs);
+                let res = ssh::run_exec(
+                    &state, &session_id, &format!("cat {abs_q}"),
+                    4 * 1024 * 1024, 5000,
+                ).await?;
+                Ok(res.stdout)
+            }
+        }
+        Some("staged") => {
+            // Index version.
+            let index_ref = format!(":{}", path);
+            let res = run_git(&state, &session_id, &cwd, &["show", &index_ref], 10000).await?;
+            Ok(combine_out(&res))
+        }
+        Some(rev_hash) => {
+            // Committed version. Paths in the object store are always relative
+            // to the repo root, so `<rev>:<path>` works regardless of cwd.
+            let rev_ref = format!("{}:{}", rev_hash, path);
+            let res = run_git(&state, &session_id, &cwd, &["show", &rev_ref], 10000).await?;
+            Ok(combine_out(&res))
+        }
+    }
+}
+
 /// Run a single command on an SSH exec channel and return its stdout.
 /// Returns an error for local-PTY sessions — callers should fall back to the
 /// saved 📍 cwd rather than trying to probe the PTY.

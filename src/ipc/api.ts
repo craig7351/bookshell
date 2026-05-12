@@ -103,6 +103,11 @@ export const api = {
   /** Read plain text from the OS clipboard. Returns null when empty or image-only. */
   clipboardReadText: () => invoke<string | null>("clipboard_read_text"),
 
+  /** Return raw UTF-8 content of a file from the git object store.
+   *  rev = undefined → working-tree file, "staged" → index, any hash → commit. */
+  gitShowFileContent: (sessionId: string, cwd: string, path: string, rev?: string) =>
+    invoke<string>("git_show_file_content", { sessionId, cwd, path, rev: rev ?? null }),
+
   // Command buttons
   buttonsList: () => invoke<CommandButton[]>("buttons_list"),
   buttonsSave: (button: CommandButton) =>

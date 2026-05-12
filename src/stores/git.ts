@@ -163,10 +163,22 @@ export async function refreshGit(tabId: string) {
 
 export type ViewerState =
   | { kind: null }
-  | { kind: "diff"; title: string; body: string; loading: boolean }
+  | {
+      kind: "diff";
+      title: string;
+      body: string;
+      loading: boolean;
+      /** Extra context needed for the MD preview tab. */
+      sessionId: string;
+      cwd: string;
+      path: string;
+      /** undefined = working tree, "staged" = index */
+      mdRev: string | undefined;
+    }
   | {
       kind: "commit";
       tabId: string;
+      sessionId: string;
       cwd: string;
       rev: string;
       detail: GitCommitDetail | null;
@@ -191,14 +203,15 @@ export async function openDiff(tabId: string, path: string, staged: boolean, unt
   const cwd = data?.cwd ?? tab.cwd ?? "";
   if (!cwd) return;
   const title = `${untracked ? "untracked " : staged ? "staged " : ""}${path}`;
-  setViewer({ kind: "diff", title, body: "", loading: true });
+  const mdRev: string | undefined = staged ? "staged" : undefined;
+  setViewer({ kind: "diff", title, body: "", loading: true, sessionId: tab.sessionId, cwd, path, mdRev });
   try {
     const body = untracked
       ? await api.gitShowUntracked(tab.sessionId, cwd, path)
       : await api.gitDiff(tab.sessionId, cwd, path, staged);
-    setViewer({ kind: "diff", title, body: body || "(no changes)", loading: false });
+    setViewer({ kind: "diff", title, body: body || "(no changes)", loading: false, sessionId: tab.sessionId, cwd, path, mdRev });
   } catch (e: any) {
-    setViewer({ kind: "diff", title: path, body: String(e), loading: false });
+    setViewer({ kind: "diff", title: path, body: String(e), loading: false, sessionId: tab.sessionId, cwd, path, mdRev });
   }
 }
 
@@ -211,6 +224,7 @@ export async function openCommit(tabId: string, rev: string) {
   setViewer({
     kind: "commit",
     tabId,
+    sessionId: tab.sessionId,
     cwd,
     rev,
     detail: null,
@@ -225,6 +239,7 @@ export async function openCommit(tabId: string, rev: string) {
     setViewer({
       kind: "commit",
       tabId,
+      sessionId: tab.sessionId,
       cwd,
       rev,
       detail,
@@ -240,6 +255,7 @@ export async function openCommit(tabId: string, rev: string) {
     setViewer({
       kind: "commit",
       tabId,
+      sessionId: tab.sessionId,
       cwd,
       rev,
       detail: null,
@@ -256,10 +272,8 @@ export async function selectCommitFile(path: string) {
   const v = viewer();
   if (v.kind !== "commit" || !v.detail) return;
   setViewer({ ...v, selectedPath: path, fileDiff: "", fileLoading: true });
-  const tab = allTabs().find((t) => t.id === v.tabId);
-  if (!tab || !tab.sessionId) return;
   try {
-    const diff = await api.gitCommitFileDiff(tab.sessionId, v.cwd, v.rev, path);
+    const diff = await api.gitCommitFileDiff(v.sessionId, v.cwd, v.rev, path);
     const cur = viewer();
     if (cur.kind !== "commit" || cur.rev !== v.rev || cur.selectedPath !== path) return;
     setViewer({ ...cur, fileDiff: diff || "(no changes for this file)", fileLoading: false });

@@ -79,6 +79,7 @@ pub fn run() {
             git::git_show_untracked,
             git::git_commit_detail,
             git::git_commit_file_diff,
+            git::git_show_file_content,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
