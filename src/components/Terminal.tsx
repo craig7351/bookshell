@@ -17,7 +17,7 @@ import {
 } from "../stores/tabs";
 import { closeSearch, isSearchOpenFor } from "../stores/search";
 import { general } from "../stores/general";
-import { connections } from "../stores/connections";
+import { connections, isLinux } from "../stores/connections";
 import { connectTab, reconnectTabFromProfile, restoreCwd } from "../stores/tabs";
 
 interface Props {
@@ -339,13 +339,18 @@ export function TerminalView(props: Props) {
     window.addEventListener("keydown", onCopyKey);
     onCleanup(() => window.removeEventListener("keydown", onCopyKey));
 
-    // Middle-click: just suppress the browser's auto-scroll affordance.
-    // WebKitGTK already does X11-style primary-selection paste into the
-    // focused textarea, which xterm forwards via onData — doing our own
-    // clipboard.readText + sshWrite here would paste twice.
+    // Middle-click paste. On Linux, WebKitGTK handles X11 primary-selection
+    // paste natively via onData — we only suppress the auto-scroll affordance
+    // to avoid double-paste. On Windows/macOS there is no native primary
+    // selection, so we read the clipboard manually with arboard.
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 1) return;
       e.preventDefault();
+      if (!isLinux()) {
+        api.clipboardReadText().then((text) => {
+          if (text) term?.paste(text);
+        }).catch((err) => console.warn("middle-click paste failed", err));
+      }
     };
     host.addEventListener("mousedown", onMouseDown);
     onCleanup(() => host.removeEventListener("mousedown", onMouseDown));

@@ -17,6 +17,7 @@ import {
   sideTermWidth,
 } from "../stores/sideTerm";
 import { layoutMode, layoutVertical } from "../stores/layout";
+import { isLinux } from "../stores/connections";
 import { activeTabId } from "../stores/tabs";
 import { CloseX } from "./CloseX";
 
@@ -259,13 +260,18 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string }) {
     };
     host.addEventListener("mouseup", onMouseUp);
 
-    // Middle-click: just suppress the browser's auto-scroll affordance.
-    // WebKitGTK already does X11-style primary-selection paste into the
-    // focused textarea, which xterm forwards via onData — doing our own
-    // clipboard.readText + sshWrite here would paste twice.
+    // Middle-click paste. On Linux, WebKitGTK handles X11 primary-selection
+    // paste natively via onData — we only suppress the auto-scroll affordance
+    // to avoid double-paste. On Windows/macOS there is no native primary
+    // selection, so we read the clipboard manually with arboard.
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 1) return;
       e.preventDefault();
+      if (!isLinux()) {
+        api.clipboardReadText().then((text) => {
+          if (text) term?.paste(text);
+        }).catch((err) => console.warn("middle-click paste failed", err));
+      }
     };
     host.addEventListener("mousedown", onMouseDown);
 
