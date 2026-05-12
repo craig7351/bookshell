@@ -199,8 +199,8 @@ export default function App() {
           setActiveTab(list[next].id);
         }
       }
-      // Ctrl+F: open search on active tab.
-      if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "f") {
+      // Ctrl+F / Ctrl+Shift+F: open search on active tab.
+      if (e.ctrlKey && !e.altKey && e.key.toLowerCase() === "f") {
         const id = activeTabId();
         if (id) {
           e.preventDefault();

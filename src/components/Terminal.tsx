@@ -194,7 +194,7 @@ export function TerminalView(props: Props) {
     // it in the capture phase and forward ^F to the shell. Returning false here
     // tells xterm to skip the event entirely and let it bubble normally.
     term.attachCustomKeyEventHandler((e) => {
-      if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "f") return false;
+      if (e.ctrlKey && !e.altKey && e.key.toLowerCase() === "f") return false;
       return true;
     });
 

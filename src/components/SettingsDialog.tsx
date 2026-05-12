@@ -190,6 +190,7 @@ const HOTKEY_GROUPS: HotkeyGroup[] = [
       { keys: ["Shift", "↑ / ↓"], desc: "Previous / next tab (capture phase)" },
       { keys: ["Ctrl", "PageUp / PageDown"], desc: "Previous / next tab (capture phase)" },
       { keys: ["Ctrl", "F"], desc: "Open / close terminal search" },
+      { keys: ["Ctrl", "Shift", "F"], desc: "Open / close terminal search" },
     ],
   },
   {
