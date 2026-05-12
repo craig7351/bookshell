@@ -1,4 +1,5 @@
 import { createEffect, createSignal, For, onMount, Show } from "solid-js";
+import { getVersion } from "@tauri-apps/api/app";
 import { ButtonEditor } from "./components/ButtonEditor";
 import { CommandBar } from "./components/CommandBar";
 import { ConnectionDialog } from "./components/ConnectionDialog";
@@ -48,6 +49,7 @@ export default function App() {
   const [showSettings, setShowSettings] = createSignal(false);
   const [showLogs, setShowLogs] = createSignal(false);
   const [colDragging, setColDragging] = createSignal(false);
+  const [appVersion, setAppVersion] = createSignal("");
 
   function startColDrag(ev: MouseEvent) {
     ev.preventDefault();
@@ -96,6 +98,8 @@ export default function App() {
   });
 
   onMount(() => {
+    getVersion().then(setAppVersion).catch(() => {});
+
     // Connections must be loaded before tab restore so reconnect can find profiles.
     (async () => {
       await Promise.all([loadConnections(), loadGeneral()]);
@@ -361,6 +365,11 @@ export default function App() {
           >
             ⚙
           </button>
+          <Show when={appVersion()}>
+            <span style={{ "font-size": "11px", color: C.text3, "letter-spacing": "0.02em" }}>
+              v{appVersion()}
+            </span>
+          </Show>
         </div>
       </div>
 

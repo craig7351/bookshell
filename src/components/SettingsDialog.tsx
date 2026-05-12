@@ -1,4 +1,5 @@
-import { createSignal, For, Show, type JSX } from "solid-js";
+import { createResource, createSignal, For, Show, type JSX } from "solid-js";
+import { getVersion } from "@tauri-apps/api/app";
 import { api, type Connection, type CommandButton, type TabState } from "../ipc/api";
 import { C, overlayStyle as baseOverlay, inputStyle, btnPrimary, btnSecondary, btnDanger } from "../theme";
 import { CloseX } from "./CloseX";
@@ -184,10 +185,11 @@ function LoggingPane(p: { logDir: string }) {
 }
 
 function AboutPane() {
+  const [version] = createResource(getVersion);
   return (
     <div>
       <div style={{ "font-size": "20px", "font-weight": 600, "margin-bottom": "4px" }}>BOOKSHELL</div>
-      <div style={{ opacity: 0.7, "margin-bottom": "16px" }}>v1.0.5 — Phase 1</div>
+      <div style={{ opacity: 0.7, "margin-bottom": "16px" }}>v{version() ?? "…"} — Phase 1</div>
       <div style={{ "font-size": "13px", "line-height": 1.6, opacity: 0.8 }}>
         SSH terminal optimized for Claude Code and other AI agents.
       </div>
