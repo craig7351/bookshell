@@ -183,7 +183,9 @@ export function TerminalView(props: Props) {
       }),
     );
     try {
-      term.loadAddon(new WebglAddon());
+      const webgl = new WebglAddon();
+      webgl.onContextLoss(() => webgl.dispose());
+      term.loadAddon(webgl);
     } catch (e) {
       console.warn("WebGL addon failed", e);
     }
