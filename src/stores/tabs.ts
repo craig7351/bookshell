@@ -293,10 +293,18 @@ export async function closeTab(id: string) {
   closeListeners.delete(id);
   bufferDumpers.delete(id);
 
+  // Capture the closed tab's index BEFORE removal so we can pick the
+  // right-hand neighbor (falling back to the left if it was the last one).
+  const closedIdx = state.tabs.findIndex((x) => x.id === id);
   setState("tabs", (prev) => prev.filter((x) => x.id !== id));
   if (state.activeTabId === id) {
     const remaining = state.tabs;
-    setState("activeTabId", remaining.length > 0 ? remaining[remaining.length - 1].id : null);
+    if (remaining.length === 0) {
+      setState("activeTabId", null);
+    } else {
+      const nextIdx = Math.min(closedIdx, remaining.length - 1);
+      setState("activeTabId", remaining[nextIdx].id);
+    }
   }
 }
 
