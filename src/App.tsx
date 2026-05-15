@@ -17,6 +17,7 @@ import { api, type Connection } from "./ipc/api";
 import { loadConnections } from "./stores/connections";
 import { loadGeneral } from "./stores/general";
 import { closeSearch, openSearch, searchTabId } from "./stores/search";
+import { actionFor } from "./stores/shortcuts";
 import { C } from "./theme";
 import {
   activeTab,
@@ -31,6 +32,7 @@ import {
   markCwdTabId,
   newTabId,
   reconnectTabFromProfile,
+  reorderTabs,
   restoreTabs,
   setActiveTab,
   tabs,
@@ -123,23 +125,18 @@ export default function App() {
 
     window.addEventListener("beforeunload", () => flushPersistedState());
 
-    // Shift+ArrowUp/Down and Ctrl+PageUp/PageDown: cycle tabs. Registered in
-    // the capture phase so it fires before xterm's textarea handler —
-    // otherwise xterm swallows the event (translates it to a PTY escape
-    // sequence) and the tab bar only responds after the user clicks the
-    // sidebar to move focus. Skipped when focus is in a real text input /
+    // Tab cycle / move shortcuts (user-customizable; see stores/shortcuts.ts).
+    // Registered in the capture phase so it fires before xterm's textarea
+    // handler — otherwise xterm swallows the event (translates it to a PTY
+    // escape sequence) and the tab bar only responds after the user clicks
+    // the sidebar to move focus. Skipped when focus is in a real text input /
     // passthrough mode so the key can still extend selection / be forwarded
     // to the remote agent.
     window.addEventListener(
       "keydown",
       (e) => {
-        const shiftCombo =
-          e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey &&
-          (e.key === "ArrowUp" || e.key === "ArrowDown");
-        const ctrlCombo =
-          e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey &&
-          (e.key === "PageUp" || e.key === "PageDown");
-        if (!shiftCombo && !ctrlCombo) return;
+        const action = actionFor(e);
+        if (!action) return;
         if (isActiveTabPassthrough()) return;
         // xterm's own input is a hidden <textarea>, so we can't blanket-skip
         // text inputs — instead, allow if focus is inside an .xterm container,
@@ -153,8 +150,21 @@ export default function App() {
         if (list.length < 2) return;
         e.preventDefault();
         e.stopPropagation();
-        const goPrev = e.key === "ArrowUp" || e.key === "PageUp";
+        const goPrev = action === "prevTab" || action === "moveTabPrev";
         const idx = list.findIndex((t) => t.id === activeTabId());
+        if (action === "moveTabPrev" || action === "moveTabNext") {
+          if (idx < 0) return;
+          let target: string | null;
+          if (goPrev) {
+            target = idx === 0 ? null : list[idx - 1].id;
+          } else {
+            if (idx === list.length - 1) target = list[0].id;
+            else if (idx + 2 >= list.length) target = null;
+            else target = list[idx + 2].id;
+          }
+          reorderTabs(list[idx].id, target);
+          return;
+        }
         const next = goPrev
           ? (idx - 1 + list.length) % list.length
           : (idx + 1) % list.length;
