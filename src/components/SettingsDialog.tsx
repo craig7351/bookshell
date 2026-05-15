@@ -1,4 +1,4 @@
-import { createResource, createSignal, For, Show, type JSX } from "solid-js";
+import { createResource, createSignal, For, onMount, Show, type JSX } from "solid-js";
 import { getVersion } from "@tauri-apps/api/app";
 import { api, type Connection, type CommandButton, type TabState } from "../ipc/api";
 import { C, overlayStyle as baseOverlay, inputStyle, btnPrimary, btnSecondary, btnDanger } from "../theme";
@@ -23,6 +23,17 @@ import {
   removeButton,
   saveButton,
 } from "../stores/buttons";
+import {
+  ACTIONS,
+  type ActionId,
+  type Binding,
+  bindingFromEvent,
+  formatBinding,
+  resetAction,
+  resetAll,
+  setBindings,
+  shortcuts,
+} from "../stores/shortcuts";
 
 interface Props {
   onClose: () => void;
@@ -164,7 +175,8 @@ function GeneralPane() {
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// Hotkeys pane — read-only reference of all keyboard shortcuts
+// Hotkeys pane — editable tab-navigation bindings + read-only reference
+// for the remaining (hardcoded) shortcuts.
 // ──────────────────────────────────────────────────────────────────────
 
 interface HotkeyGroup {
@@ -187,8 +199,6 @@ const HOTKEY_GROUPS: HotkeyGroup[] = [
       { keys: ["Ctrl", "Tab"], desc: "Next tab" },
       { keys: ["Ctrl", "Shift", "Tab"], desc: "Previous tab" },
       { keys: ["Ctrl", "1–9"], desc: "Jump to tab by index" },
-      { keys: ["Shift", "↑ / ↓"], desc: "Previous / next tab (capture phase)" },
-      { keys: ["Ctrl", "PageUp / PageDown"], desc: "Previous / next tab (capture phase)" },
       { keys: ["Ctrl", "F"], desc: "Open / close terminal search" },
       { keys: ["Ctrl", "Shift", "F"], desc: "Open / close terminal search" },
     ],
@@ -224,9 +234,168 @@ function Kbd(p: { label: string }) {
   );
 }
 
+function BindingPill(p: { binding: Binding; onRemove: () => void }) {
+  return (
+    <div style={{
+      display: "inline-flex",
+      "align-items": "center",
+      gap: "4px",
+      padding: "2px 4px 2px 8px",
+      background: "rgba(255,255,255,0.07)",
+      border: `1px solid rgba(255,255,255,0.18)`,
+      "border-radius": "6px",
+      "font-family": "monospace",
+      "font-size": "11px",
+    }}>
+      <span>{formatBinding(p.binding)}</span>
+      <button
+        onClick={p.onRemove}
+        title="Remove binding"
+        style={{
+          all: "unset",
+          cursor: "pointer",
+          padding: "0 4px",
+          "border-radius": "3px",
+          color: C.text3,
+          "font-size": "13px",
+          "line-height": "1",
+        }}
+      >×</button>
+    </div>
+  );
+}
+
+function CapturePill(p: { onCommit: (b: Binding) => void; onCancel: () => void }) {
+  let ref: HTMLDivElement | undefined;
+  onMount(() => ref?.focus());
+  return (
+    <div
+      ref={ref}
+      tabIndex={0}
+      onBlur={p.onCancel}
+      onKeyDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === "Escape") { p.onCancel(); return; }
+        const b = bindingFromEvent(e);
+        if (b) p.onCommit(b);
+      }}
+      style={{
+        display: "inline-flex",
+        "align-items": "center",
+        padding: "3px 10px",
+        background: "rgba(120,160,255,0.15)",
+        border: `1px dashed ${C.accent ?? "rgba(120,160,255,0.6)"}`,
+        "border-radius": "6px",
+        "font-size": "11px",
+        outline: "none",
+        cursor: "text",
+      }}
+    >
+      Press keys… (Esc to cancel)
+    </div>
+  );
+}
+
+function ShortcutRow(p: { action: typeof ACTIONS[number] }) {
+  const [capturing, setCapturing] = createSignal(false);
+  const bindings = () => shortcuts()[p.action.id];
+
+  function commit(b: Binding) {
+    setBindings(p.action.id, [...bindings(), b]);
+    setCapturing(false);
+  }
+  function removeAt(i: number) {
+    const next = bindings().slice();
+    next.splice(i, 1);
+    setBindings(p.action.id, next);
+  }
+
+  return (
+    <div style={{
+      display: "flex",
+      "align-items": "center",
+      gap: "12px",
+      padding: "10px 14px",
+      "border-top": `1px solid ${C.borderSub}`,
+    }}>
+      <div style={{ "min-width": "150px", flex: "0 0 150px" }}>
+        <div style={{ "font-size": "13px", "font-weight": 500 }}>{p.action.label}</div>
+        <div style={{ "font-size": "11px", opacity: 0.6 }}>{p.action.desc}</div>
+      </div>
+      <div style={{ display: "flex", "flex-wrap": "wrap", gap: "6px", "align-items": "center", flex: 1 }}>
+        <For each={bindings()}>
+          {(b, i) => <BindingPill binding={b} onRemove={() => removeAt(i())} />}
+        </For>
+        <Show
+          when={capturing()}
+          fallback={
+            <button
+              onClick={() => setCapturing(true)}
+              style={{
+                ...btnSecondary,
+                padding: "2px 8px",
+                "font-size": "11px",
+              }}
+            >+ Add</button>
+          }
+        >
+          <CapturePill onCommit={commit} onCancel={() => setCapturing(false)} />
+        </Show>
+      </div>
+      <button
+        onClick={() => resetAction(p.action.id)}
+        title="Reset to default"
+        style={{
+          ...btnSecondary,
+          padding: "2px 8px",
+          "font-size": "11px",
+          opacity: 0.7,
+        }}
+      >Reset</button>
+    </div>
+  );
+}
+
 function HotkeysPane() {
   return (
     <div style={{ display: "flex", "flex-direction": "column", gap: "20px" }}>
+      <div>
+        <div style={{
+          display: "flex",
+          "align-items": "center",
+          "justify-content": "space-between",
+          "margin-bottom": "8px",
+        }}>
+          <div style={{
+            "font-size": "11px",
+            "font-weight": 600,
+            color: C.text3,
+            "letter-spacing": "0.06em",
+            "text-transform": "uppercase",
+          }}>
+            Tab navigation (customizable)
+          </div>
+          <button
+            onClick={resetAll}
+            style={{ ...btnSecondary, padding: "2px 10px", "font-size": "11px" }}
+          >Reset all</button>
+        </div>
+        <div style={{
+          background: C.bg3,
+          border: `1px solid ${C.borderSub}`,
+          "border-radius": "8px",
+          overflow: "hidden",
+        }}>
+          <div style={{ "font-size": "11px", opacity: 0.6, padding: "8px 14px" }}>
+            Click <b>+ Add</b> then press the key combination. Multiple bindings per action are allowed.
+          </div>
+          <For each={ACTIONS}>
+            {(a) => <ShortcutRow action={a} />}
+          </For>
+        </div>
+      </div>
+
       <For each={HOTKEY_GROUPS}>
         {(group) => (
           <div>
