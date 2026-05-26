@@ -1,4 +1,3 @@
-use crate::logger;
 use crate::ssh::{Cmd, SessionHandle};
 use crate::AppState;
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
@@ -124,24 +123,7 @@ pub async fn local_open_pty(
     let data_event = format!("ssh://data/{}", session_id);
     let close_event = format!("ssh://close/{}", session_id);
 
-    // Per-session logger — same scheme as SSH sessions, label is the shell's
-    // basename so files like `20260501_..._powershell.exe.log` show up in
-    // ~/Documents/BOOKSHELL/logs.
-    let log_label = std::path::Path::new(&program)
-        .file_name()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "local".to_string());
-    let log_handle = logger::start_logger(&log_label).await.ok();
-    let log_path = log_handle
-        .as_ref()
-        .map(|h| h.path.clone())
-        .unwrap_or_default();
-    let log_tx = log_handle.map(|h| h.tx);
-
-    // Reader: blocking read in a dedicated OS thread, push bytes to frontend
-    // and (if logging enabled) into the logger channel. Moving `log_tx` in
-    // here means it's dropped when the PTY closes, which signals the logger
-    // task to flush its footer and close the file.
+    // Reader: blocking read in a dedicated OS thread, push bytes to frontend.
     let app_for_reader = app.clone();
     let data_event_for_reader = data_event.clone();
     std::thread::spawn(move || {
@@ -151,13 +133,7 @@ pub async fn local_open_pty(
             match reader.read(&mut buf) {
                 Ok(0) => break,
                 Ok(n) => {
-                    let bytes = buf[..n].to_vec();
-                    if let Some(tx) = &log_tx {
-                        // blocking_send: this is a plain std::thread, not a
-                        // tokio task, so async .send() isn't usable here.
-                        let _ = tx.blocking_send(bytes.clone());
-                    }
-                    let _ = app_for_reader.emit(&data_event_for_reader, bytes);
+                    let _ = app_for_reader.emit(&data_event_for_reader, buf[..n].to_vec());
                 }
                 Err(_) => break,
             }
@@ -219,7 +195,6 @@ pub async fn local_open_pty(
 
     let handle = SessionHandle {
         tx: cmd_tx,
-        log_path,
         session: None,
         is_primary: true,
     };

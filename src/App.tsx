@@ -4,7 +4,6 @@ import { ButtonEditor } from "./components/ButtonEditor";
 import { CommandBar } from "./components/CommandBar";
 import { ConnectionDialog } from "./components/ConnectionDialog";
 import { GitPanel } from "./components/GitPanel";
-import { LogViewer } from "./components/LogViewer";
 import { SideTerminalPanel } from "./components/SideTerminal";
 import { isSideTermOpen, toggleSideTerm } from "./stores/sideTerm";
 import { MarkCwdDialog } from "./components/MarkCwdDialog";
@@ -49,7 +48,6 @@ export default function App() {
   const [showDialog, setShowDialog] = createSignal(false);
   const [showButtonEditor, setShowButtonEditor] = createSignal(false);
   const [showSettings, setShowSettings] = createSignal(false);
-  const [showLogs, setShowLogs] = createSignal(false);
   const [colDragging, setColDragging] = createSignal(false);
   const [appVersion, setAppVersion] = createSignal("");
 
@@ -357,13 +355,6 @@ export default function App() {
           >
             🔍 Find
           </button>
-          <button
-            onClick={() => setShowLogs(true)}
-            style={{ ...toolBtn, color: C.text2, border: `1px solid ${C.border}` }}
-            title="Open log viewer"
-          >
-            📜 Logs
-          </button>
           <div style={{ width: "1px", height: "16px", background: C.border, margin: "0 2px" }} />
           <button onClick={() => setShowDialog(true)} style={btnPrimary}>
             + Connect
@@ -469,9 +460,6 @@ export default function App() {
       </Show>
       <Show when={markCwdTabId()}>
         {(id) => <MarkCwdDialog tabId={id()} onClose={closeMarkCwd} />}
-      </Show>
-      <Show when={showLogs()}>
-        <LogViewer onClose={() => setShowLogs(false)} />
       </Show>
     </div>
   );

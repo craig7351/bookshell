@@ -1,17 +1,14 @@
-use crate::logger;
 use crate::AppState;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use russh::client::{self, Handle};
 use russh::{ChannelId, ChannelMsg, Disconnect};
-use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::{mpsc, Mutex};
 
 pub struct SessionHandle {
     pub tx: mpsc::Sender<Cmd>,
-    pub log_path: PathBuf,
     /// `Some` only for SSH sessions; `None` for local PTYs which don't have
     /// a russh Handle to share. `run_exec` and other SSH-only helpers refuse
     /// to operate on a None session.
@@ -296,17 +293,8 @@ pub async fn ssh_connect(
     let session_arc = Arc::new(Mutex::new(session));
     let channel_id = channel.id();
 
-    let log_label = format!("{}@{}", user, host);
-    let log_handle = logger::start_logger(&log_label).await.ok();
-    let log_path = log_handle
-        .as_ref()
-        .map(|h| h.path.clone())
-        .unwrap_or_default();
-    let log_tx = log_handle.map(|h| h.tx);
-
     let handle = SessionHandle {
         tx: cmd_tx.clone(),
-        log_path: log_path.clone(),
         session: Some(session_arc.clone()),
         is_primary: true,
     };
@@ -325,7 +313,6 @@ pub async fn ssh_connect(
             channel_id,
             session_for_task,
             &mut cmd_rx,
-            log_tx,
             true,
         )
         .await;
@@ -391,7 +378,6 @@ pub async fn ssh_open_pty(
 
     let handle = SessionHandle {
         tx: cmd_tx.clone(),
-        log_path: PathBuf::new(),
         session: Some(parent_session.clone()),
         is_primary: false,
     };
@@ -410,7 +396,6 @@ pub async fn ssh_open_pty(
             channel_id,
             session_for_task,
             &mut cmd_rx,
-            None,
             false,
         )
         .await;
@@ -428,7 +413,6 @@ async fn run_session(
     channel_id: ChannelId,
     session: Arc<Mutex<Handle<Client>>>,
     cmd_rx: &mut mpsc::Receiver<Cmd>,
-    log_tx: Option<mpsc::Sender<Vec<u8>>>,
     is_primary: bool,
 ) -> String {
     let data_event = format!("ssh://data/{}", session_id);
@@ -437,18 +421,10 @@ async fn run_session(
             msg = channel.wait() => {
                 match msg {
                     Some(ChannelMsg::Data { data }) => {
-                        let bytes: Vec<u8> = data.to_vec();
-                        if let Some(tx) = &log_tx {
-                            let _ = tx.send(bytes.clone()).await;
-                        }
-                        let _ = app.emit(&data_event, bytes);
+                        let _ = app.emit(&data_event, data.to_vec());
                     }
                     Some(ChannelMsg::ExtendedData { data, .. }) => {
-                        let bytes: Vec<u8> = data.to_vec();
-                        if let Some(tx) = &log_tx {
-                            let _ = tx.send(bytes.clone()).await;
-                        }
-                        let _ = app.emit(&data_event, bytes);
+                        let _ = app.emit(&data_event, data.to_vec());
                     }
                     Some(ChannelMsg::Eof) => {}
                     Some(ChannelMsg::ExitStatus { exit_status }) => {
@@ -537,17 +513,6 @@ pub async fn ssh_disconnect(
         let _ = handle.tx.send(Cmd::Close).await;
     }
     Ok(())
-}
-
-#[tauri::command]
-pub async fn ssh_log_path(
-    state: State<'_, AppState>,
-    session_id: String,
-) -> Result<Option<String>, String> {
-    Ok(state
-        .sessions
-        .get(&session_id)
-        .map(|h| h.log_path.to_string_lossy().into_owned()))
 }
 
 /// Upload a local file to `/tmp/bookshell-clip/<basename>` on the remote host

@@ -77,18 +77,6 @@ export const api = {
   reorderConnections: (ids: string[]) =>
     invoke<void>("config_reorder_connections", { ids }),
 
-  // Logging
-  loggerOpenDir: () => invoke<void>("logger_open_dir"),
-  loggerDirPath: () => invoke<string>("logger_dir_path"),
-  logsList: () => invoke<LogEntry[]>("logs_list"),
-  logsRead: (name: string) =>
-    invoke<number[]>("logs_read", { name }).then((arr) => new Uint8Array(arr)),
-  sshLogPath: (sessionId: string) =>
-    invoke<string | null>("ssh_log_path", { sessionId }),
-  /** Open a native Save As dialog and write `content` to the chosen path.
-   *  Returns the saved path, or null if the user cancelled. */
-  transcriptSaveDialog: (suggestedName: string, content: string) =>
-    invoke<string | null>("transcript_save_dialog", { suggestedName, content }),
   /** Open an http(s) URL in the user's default browser. */
   urlOpen: (url: string) => invoke<void>("url_open", { url }),
 
@@ -219,12 +207,6 @@ export interface TabState {
 export interface TabsFile {
   tabs: TabState[];
   active_tab_id?: string | null;
-}
-
-export interface LogEntry {
-  name: string;
-  size: number;
-  modified_unix_ms: number;
 }
 
 export interface GeneralSettings {

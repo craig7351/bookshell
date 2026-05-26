@@ -53,23 +53,12 @@ export function closeMarkCwd() {
 const sessionUnlisteners = new Map<string, UnlistenFn[]>();
 const dataListeners = new Map<string, (bytes: Uint8Array) => void>();
 const closeListeners = new Map<string, (reason: string) => void>();
-const bufferDumpers = new Map<string, () => string>();
-
 export function onTabData(tabId: string, cb: (bytes: Uint8Array) => void) {
   dataListeners.set(tabId, cb);
 }
 export function onTabClose(tabId: string, cb: (reason: string) => void) {
   closeListeners.set(tabId, cb);
 }
-/** Terminal.tsx registers a function that returns the xterm buffer (scrollback
- *  + viewport) as plain text. Used by "Export transcript". */
-export function onTabBufferDump(tabId: string, dumper: () => string) {
-  bufferDumpers.set(tabId, dumper);
-}
-export function dumpTabBuffer(tabId: string): string | null {
-  return bufferDumpers.get(tabId)?.() ?? null;
-}
-
 let nextTabSeq = 1;
 export function newTabId(): string {
   return `tab-${Date.now()}-${nextTabSeq++}`;
@@ -291,7 +280,6 @@ export async function closeTab(id: string) {
   sessionUnlisteners.delete(id);
   dataListeners.delete(id);
   closeListeners.delete(id);
-  bufferDumpers.delete(id);
 
   // Capture the closed tab's index BEFORE removal so we can pick the
   // right-hand neighbor (falling back to the left if it was the last one).

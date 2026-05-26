@@ -11,7 +11,6 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 import { api } from "../ipc/api";
 import {
   bumpFit,
-  onTabBufferDump,
   onTabClose,
   onTabData,
   type Tab,
@@ -330,34 +329,6 @@ export function TerminalView(props: Props) {
     onTabData(props.tab.id, (bytes) => term?.write(bytes));
     onTabClose(props.tab.id, (reason) => {
       term?.write(`\r\n\x1b[31m[session closed: ${reason}]\x1b[0m\r\n`);
-    });
-
-    // Walk the active buffer (scrollback + viewport) and return a plain-text
-    // dump. xterm has already resolved every cursor move / line clear /
-    // spinner redraw, so this is what the user actually saw on screen.
-    onTabBufferDump(props.tab.id, () => {
-      if (!term) return "";
-      const buf = term.buffer.active;
-      const lines: string[] = [];
-      for (let y = 0; y < buf.length; y++) {
-        const line = buf.getLine(y);
-        lines.push(line ? line.translateToString(true) : "");
-      }
-      // Trim leading/trailing blanks; collapse 3+ consecutive blanks to 2.
-      while (lines.length && lines[0] === "") lines.shift();
-      while (lines.length && lines[lines.length - 1] === "") lines.pop();
-      const out: string[] = [];
-      let blankRun = 0;
-      for (const l of lines) {
-        if (l === "") {
-          blankRun++;
-          if (blankRun <= 2) out.push(l);
-        } else {
-          blankRun = 0;
-          out.push(l);
-        }
-      }
-      return out.join("\n");
     });
 
     // Auto-copy on selection: fires when the drag ends inside the terminal.

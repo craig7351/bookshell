@@ -48,15 +48,11 @@ interface Category {
 
 export function SettingsDialog(props: Props) {
   const [active, setActive] = createSignal("general");
-  const [logDir, setLogDir] = createSignal<string>("");
-
-  api.loggerDirPath().then(setLogDir).catch(() => {});
 
   const categories: Category[] = [
     { id: "general", label: "General", icon: "⚙", render: () => <GeneralPane /> },
     { id: "connections", label: "Connections", icon: "🔌", render: () => <ConnectionsPane /> },
     { id: "buttons", label: "Command Buttons", icon: "🔘", render: () => <ButtonsPane /> },
-    { id: "logging", label: "Logging", icon: "📝", render: () => <LoggingPane logDir={logDir()} /> },
     { id: "hotkeys", label: "Hotkeys", icon: "⌨", render: () => <HotkeysPane /> },
     { id: "backup", label: "Backup", icon: "💾", render: () => <BackupPane /> },
     { id: "about", label: "About", icon: "ℹ", render: () => <AboutPane /> },
@@ -449,28 +445,6 @@ function HotkeysPane() {
           </div>
         )}
       </For>
-    </div>
-  );
-}
-
-function LoggingPane(p: { logDir: string }) {
-  return (
-    <div>
-      <div style={{ "margin-bottom": "12px" }}>
-        Logs are written automatically for every SSH session.
-      </div>
-      <div style={{ display: "grid", "grid-template-columns": "120px 1fr", gap: "8px", "align-items": "center" }}>
-        <label style={{ opacity: 0.7 }}>Directory</label>
-        <div style={{ display: "flex", gap: "6px", "align-items": "center" }}>
-          <code style={{ background: C.bg, border: `1px solid ${C.borderSub}`, padding: "4px 8px", "border-radius": "6px", "font-size": "12px", flex: 1, "word-break": "break-all", color: C.text2 }}>
-            {p.logDir || "(loading…)"}
-          </code>
-          <button onClick={() => api.loggerOpenDir().catch(console.error)} style={btnPrimary}>Open</button>
-        </div>
-      </div>
-      <div style={{ "margin-top": "16px", opacity: 0.6, "font-size": "12px" }}>
-        Future: strip-ANSI toggle, timestamp lines, log rotation, retention period (TODO 2-7 / Q-10 / Q-11).
-      </div>
     </div>
   );
 }

@@ -17,6 +17,8 @@ SSH terminal for AI agents — a Tauri 2 + SolidJS desktop app with multi-tab xt
 - Bottom-right side terminal sharing the main tab's cwd — handy for issuing commands while an AI agent is busy in the main pane
 - Side terminal panel with independent font size
 - Clickable URLs, middle-click paste, scrollback search
+- Drag-and-drop files onto a local tab to paste their quoted path(s); SSH tabs show a "not supported" notice
+- Clipboard image paste (`Ctrl+V`): local tabs paste the local file path; SSH tabs upload the image to `/tmp/bookshell-clip/` on the remote and paste the remote path
 - Persistent SSH sessions with keepalive past server idle timeouts
 - Transcript export and in-app log viewer with ANSI replay
 - Tab cycling via `Shift+Up` / `Shift+Down` from anywhere

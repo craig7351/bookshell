@@ -17,6 +17,8 @@
 - 右下角可開副視窗終端機，與主視窗共用工作目錄，主視窗在跑 AI agent 時可同步下其他指令
 - 獨立字體大小設定的 side terminal 面板
 - 可點擊網址、中鍵貼上、scrollback 搜尋
+- 拖放檔案到本機 tab，自動貼上引號包覆的路徑（SSH tab 會提示不支援）
+- 剪貼簿圖片貼上（`Ctrl+V`）：本機 tab 貼本地路徑，SSH tab 自動上傳圖片至遠端 `/tmp/bookshell-clip/` 再貼遠端路徑
 - SSH 連線保持機制，可穿越伺服器 idle timeout
 - Transcript 匯出與內建 log viewer（含 ANSI 重播）
 - 全域快捷鍵 `Shift+Up` / `Shift+Down` 切換分頁

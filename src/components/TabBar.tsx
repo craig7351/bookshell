@@ -7,7 +7,6 @@ import { C } from "../theme";
 import {
   activeTabId,
   closeTab,
-  dumpTabBuffer,
   openMarkCwd,
   renameTab,
   reorderTabs,
@@ -20,7 +19,6 @@ import {
   type TabStatus,
 } from "../stores/tabs";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
-import { api } from "../ipc/api";
 
 interface Props {
   onNew: () => void;
@@ -162,35 +160,8 @@ export function TabBar(props: Props) {
         })),
       },
       { separator: true, label: "" },
-      { label: "📝 Export transcript…", onClick: () => exportTranscript(tab) },
-      { separator: true, label: "" },
       { label: "Close", danger: true, onClick: () => closeTab(tab.id) },
     ];
-  }
-
-  async function exportTranscript(tab: Tab) {
-    const text = dumpTabBuffer(tab.id);
-    if (text === null) {
-      console.warn("no buffer dumper registered for", tab.id);
-      return;
-    }
-    // Header lets the file stand on its own when shared.
-    const header = [
-      `# BOOKSHELL transcript`,
-      `# tab:    ${tab.name}`,
-      `# cwd:    ${tab.cwd ?? "(unset)"}`,
-      `# saved:  ${new Date().toISOString()}`,
-      ``,
-      ``,
-    ].join("\n");
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const safeName = tab.name.replace(/[^\w.-]+/g, "_") || "tab";
-    const suggested = `bookshell-${safeName}-${stamp}.txt`;
-    try {
-      await api.transcriptSaveDialog(suggested, header + text + "\n");
-    } catch (e) {
-      console.warn("transcript save failed", e);
-    }
   }
 
   function commitRename(tabId: string, ev: HTMLInputElement) {
