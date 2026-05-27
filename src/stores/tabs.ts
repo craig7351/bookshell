@@ -1,4 +1,4 @@
-import { createEffect, createSignal } from "solid-js";
+import { createEffect, createRoot, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import { api, type Connection, type TabState, type UnlistenFn } from "../ipc/api";
 import { connections } from "./connections";
@@ -423,20 +423,25 @@ function scheduleSave() {
   }, 400);
 }
 
-createEffect(() => {
-  // Track each persisted field. Solid's reactivity collects deps automatically.
-  state.tabs.forEach((t) => {
-    void t.id;
-    void t.name;
-    void t.connectionId;
-    void t.color;
-    void t.icon;
-    void t.passthrough;
-    void t.cwd;
-    void t.gitWidth;
+// Wrapped in createRoot so this app-lifetime effect has an owner; a bare
+// module-level createEffect is owner-less and logs "computations created
+// outside a createRoot or render will never be disposed".
+createRoot(() => {
+  createEffect(() => {
+    // Track each persisted field. Solid's reactivity collects deps automatically.
+    state.tabs.forEach((t) => {
+      void t.id;
+      void t.name;
+      void t.connectionId;
+      void t.color;
+      void t.icon;
+      void t.passthrough;
+      void t.cwd;
+      void t.gitWidth;
+    });
+    void state.activeTabId;
+    scheduleSave();
   });
-  void state.activeTabId;
-  scheduleSave();
 });
 
 /** Restore tabs from disk. Each restored tab starts disconnected; the caller

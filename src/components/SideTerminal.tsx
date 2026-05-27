@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner, Show } from "solid-js";
 import { C, xtermTheme } from "../theme";
 import { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -181,6 +181,12 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string }) {
   let unlisteners: Array<() => void> = [];
 
   onMount(async () => {
+    // Capture the component owner before any `await`. SolidJS only tracks the
+    // owner synchronously, so reactive primitives created after the awaits
+    // below (createEffect / onCleanup) would otherwise be owner-less — they'd
+    // never be disposed (leaking listeners + an effect on every remount) and
+    // log "computations/cleanups created outside a createRoot" warnings.
+    const owner = getOwner();
     term = new Terminal({
       cursorBlink: true,
       fontFamily: '"JetBrains Mono", "Cascadia Code", Consolas, monospace',
@@ -275,22 +281,26 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string }) {
     };
     host.addEventListener("mousedown", onMouseDown);
 
-    createEffect(() => {
-      if (!term) return;
-      term.options.scrollback = general().scrollback;
-      term.options.fontSize = general().side_font_size;
-      queueMicrotask(() => fit?.fit());
-    });
-
     const ro = new ResizeObserver(() => {
       if (isSideTermOpen(props.parentTabId)) fit?.fit();
     });
     ro.observe(host);
 
-    onCleanup(() => {
-      host.removeEventListener("mouseup", onMouseUp);
-      host.removeEventListener("mousedown", onMouseDown);
-      ro.disconnect();
+    // Re-establish the owner lost across the awaits above so these reactive
+    // primitives are attached to the component and disposed on unmount.
+    runWithOwner(owner, () => {
+      createEffect(() => {
+        if (!term) return;
+        term.options.scrollback = general().scrollback;
+        term.options.fontSize = general().side_font_size;
+        queueMicrotask(() => fit?.fit());
+      });
+
+      onCleanup(() => {
+        host.removeEventListener("mouseup", onMouseUp);
+        host.removeEventListener("mousedown", onMouseDown);
+        ro.disconnect();
+      });
     });
     term.focus();
   });
