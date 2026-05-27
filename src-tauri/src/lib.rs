@@ -22,6 +22,7 @@ pub struct AppState {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     monitor::init_logger();
+    monitor::install_panic_hook();
 
     let state = AppState {
         sessions: Arc::new(DashMap::new()),
@@ -31,7 +32,9 @@ pub fn run() {
         .manage(state)
         .manage(git_watch::GitWatchState::new())
         .setup(|app| {
+            monitor::log_startup(&app.package_info().version.to_string());
             monitor::attach_app(app.handle().clone());
+            monitor::start_watchdog();
             #[cfg(target_os = "windows")]
             {
                 if let Some(window) = app.get_webview_window("main") {
@@ -63,6 +66,8 @@ pub fn run() {
             clipboard::clipboard_write_text,
             clipboard::clipboard_read_text,
             monitor::system_stats,
+            monitor::heartbeat,
+            monitor::diag_record_stall,
             general::general_get,
             general::general_set,
             tabs::tabs_load_state,

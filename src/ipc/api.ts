@@ -103,6 +103,13 @@ export const api = {
   onDiagLog: (cb: (entry: DiagLogEntry) => void) =>
     listen<DiagLogEntry>("diag://log", (e) => cb(e.payload)),
 
+  /** Frontend liveness ping for the backend watchdog. */
+  heartbeat: () => invoke<void>("heartbeat"),
+
+  /** Persist a frontend-detected main-thread stall to the debug file. */
+  diagRecordStall: (gapMs: number) =>
+    invoke<void>("diag_record_stall", { gapMs }),
+
   // Command buttons
   buttonsList: () => invoke<CommandButton[]>("buttons_list"),
   buttonsSave: (button: CommandButton) =>
