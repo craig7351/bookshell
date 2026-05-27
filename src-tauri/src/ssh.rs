@@ -4,6 +4,7 @@ use dashmap::DashMap;
 use russh::client::{self, Handle};
 use russh::{ChannelId, ChannelMsg, Disconnect};
 use std::sync::Arc;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::{mpsc, Mutex};
 
@@ -406,6 +407,58 @@ pub async fn ssh_open_pty(
     Ok(session_id)
 }
 
+/// Base64-encode bytes and emit them as a single event. Base64 keeps the
+/// payload a compact JSON string (~1.33x) instead of Tauri's default
+/// `Vec<u8>` → JSON number-array encoding (~3-10x size + per-byte parse on the
+/// UI thread), which was the main cause of UI freezes under heavy output.
+fn emit_b64(app: &AppHandle, event: &str, bytes: &[u8]) {
+    use base64::Engine;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+    let _ = app.emit(event, encoded);
+}
+
+/// Spawn a per-session task that coalesces terminal output: bytes pushed to the
+/// returned sender are buffered and flushed at most every 16 ms (or sooner once
+/// the buffer passes 64 KiB), then emitted base64-encoded on `event`. Batching
+/// collapses an output flood into a few events per frame instead of one per
+/// read, keeping the webview main thread responsive. Dropping the sender
+/// flushes the tail and ends the task.
+pub fn spawn_output_coalescer(app: AppHandle, event: String) -> mpsc::UnboundedSender<Vec<u8>> {
+    let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    tokio::spawn(async move {
+        const MAX_BUF: usize = 64 * 1024;
+        let mut buf: Vec<u8> = Vec::new();
+        let mut ticker = tokio::time::interval(Duration::from_millis(16));
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            tokio::select! {
+                maybe = rx.recv() => match maybe {
+                    Some(bytes) => {
+                        buf.extend_from_slice(&bytes);
+                        if buf.len() >= MAX_BUF {
+                            emit_b64(&app, &event, &buf);
+                            buf.clear();
+                        }
+                    }
+                    None => {
+                        if !buf.is_empty() {
+                            emit_b64(&app, &event, &buf);
+                        }
+                        break;
+                    }
+                },
+                _ = ticker.tick() => {
+                    if !buf.is_empty() {
+                        emit_b64(&app, &event, &buf);
+                        buf.clear();
+                    }
+                }
+            }
+        }
+    });
+    tx
+}
+
 async fn run_session(
     app: AppHandle,
     session_id: String,
@@ -416,15 +469,16 @@ async fn run_session(
     is_primary: bool,
 ) -> String {
     let data_event = format!("ssh://data/{}", session_id);
+    let out_tx = spawn_output_coalescer(app, data_event);
     loop {
         tokio::select! {
             msg = channel.wait() => {
                 match msg {
                     Some(ChannelMsg::Data { data }) => {
-                        let _ = app.emit(&data_event, data.to_vec());
+                        let _ = out_tx.send(data.to_vec());
                     }
                     Some(ChannelMsg::ExtendedData { data, .. }) => {
-                        let _ = app.emit(&data_event, data.to_vec());
+                        let _ = out_tx.send(data.to_vec());
                     }
                     Some(ChannelMsg::Eof) => {}
                     Some(ChannelMsg::ExitStatus { exit_status }) => {

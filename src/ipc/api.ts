@@ -4,6 +4,15 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 export type AuthMethod = "password";
 export type ConnectionKind = "ssh" | "local";
 
+/** Decode a base64 string (terminal output payload) into raw bytes. */
+function b64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const len = bin.length;
+  const out = new Uint8Array(len);
+  for (let i = 0; i < len; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
 export interface Connection {
   id: string;
   name: string;
@@ -57,10 +66,12 @@ export const api = {
   sshUploadFile: (sessionId: string, localPath: string) =>
     invoke<string>("ssh_upload_file", { sessionId, localPath }),
 
+  // Terminal output arrives base64-encoded (the backend coalesces reads and
+  // sends a compact JSON string instead of a Vec<u8> → number-array payload,
+  // which used to flood and freeze the UI thread). Decode to raw bytes and let
+  // xterm's write() do the streaming UTF-8 decode.
   onSshData: (sessionId: string, cb: (bytes: Uint8Array) => void) =>
-    listen<number[]>(`ssh://data/${sessionId}`, (e) =>
-      cb(new Uint8Array(e.payload)),
-    ),
+    listen<string>(`ssh://data/${sessionId}`, (e) => cb(b64ToBytes(e.payload))),
 
   onSshClose: (sessionId: string, cb: (reason: string) => void) =>
     listen<string>(`ssh://close/${sessionId}`, (e) => cb(e.payload)),

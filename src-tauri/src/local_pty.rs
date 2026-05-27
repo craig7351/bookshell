@@ -123,9 +123,11 @@ pub async fn local_open_pty(
     let data_event = format!("ssh://data/{}", session_id);
     let close_event = format!("ssh://close/{}", session_id);
 
-    // Reader: blocking read in a dedicated OS thread, push bytes to frontend.
-    let app_for_reader = app.clone();
-    let data_event_for_reader = data_event.clone();
+    // Reader: blocking read in a dedicated OS thread. Bytes go through the same
+    // base64 + 16ms coalescer the SSH path uses (ssh::spawn_output_coalescer) so
+    // a flood of local output can't saturate the webview main thread. Dropping
+    // `out_tx` when the loop ends flushes the tail and stops the coalescer.
+    let out_tx = crate::ssh::spawn_output_coalescer(app.clone(), data_event);
     std::thread::spawn(move || {
         let mut reader = reader;
         let mut buf = [0u8; 8192];
@@ -133,7 +135,9 @@ pub async fn local_open_pty(
             match reader.read(&mut buf) {
                 Ok(0) => break,
                 Ok(n) => {
-                    let _ = app_for_reader.emit(&data_event_for_reader, buf[..n].to_vec());
+                    if out_tx.send(buf[..n].to_vec()).is_err() {
+                        break;
+                    }
                 }
                 Err(_) => break,
             }
