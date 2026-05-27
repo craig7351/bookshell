@@ -6,6 +6,7 @@ mod git;
 mod git_watch;
 mod local_pty;
 mod logger;
+mod monitor;
 mod ssh;
 mod tabs;
 mod webview;
@@ -20,7 +21,7 @@ pub struct AppState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    monitor::init_logger();
 
     let state = AppState {
         sessions: Arc::new(DashMap::new()),
@@ -30,6 +31,7 @@ pub fn run() {
         .manage(state)
         .manage(git_watch::GitWatchState::new())
         .setup(|app| {
+            monitor::attach_app(app.handle().clone());
             #[cfg(target_os = "windows")]
             {
                 if let Some(window) = app.get_webview_window("main") {
@@ -60,6 +62,7 @@ pub fn run() {
             clipboard::clipboard_save_image,
             clipboard::clipboard_write_text,
             clipboard::clipboard_read_text,
+            monitor::system_stats,
             general::general_get,
             general::general_set,
             tabs::tabs_load_state,

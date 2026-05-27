@@ -5,6 +5,8 @@ import { CommandBar } from "./components/CommandBar";
 import { ConnectionDialog } from "./components/ConnectionDialog";
 import { GitPanel } from "./components/GitPanel";
 import { SideTerminalPanel } from "./components/SideTerminal";
+import { StatusFooter } from "./components/StatusFooter";
+import { initDiagnostics } from "./stores/diagnostics";
 import { isSideTermOpen, toggleSideTerm } from "./stores/sideTerm";
 import { MarkCwdDialog } from "./components/MarkCwdDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -99,6 +101,7 @@ export default function App() {
 
   onMount(() => {
     getVersion().then(setAppVersion).catch(() => {});
+    initDiagnostics();
 
     // Connections must be loaded before tab restore so reconnect can find profiles.
     (async () => {
@@ -445,6 +448,8 @@ export default function App() {
           <CommandBar onEdit={() => setShowButtonEditor(true)} />
         </div>
       </div>
+
+      <StatusFooter />
 
       <Show when={showDialog()}>
         <ConnectionDialog

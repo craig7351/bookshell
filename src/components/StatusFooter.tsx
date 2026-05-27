@@ -1,0 +1,261 @@
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { api, type SystemStats } from "../ipc/api";
+import { tabs } from "../stores/tabs";
+import { clearDiag, diagEntries } from "../stores/diagnostics";
+import { C } from "../theme";
+
+const POLL_MS = 2000;
+const startedAt = Date.now();
+
+export function StatusFooter() {
+  const [stats, setStats] = createSignal<SystemStats | null>(null);
+  const [uptime, setUptime] = createSignal(0);
+  const [open, setOpen] = createSignal(false);
+
+  onMount(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const s = await api.systemStats();
+        if (!cancelled) setStats(s);
+      } catch {
+        // sysinfo can briefly fail right after launch — silently retry.
+      }
+    }
+    poll();
+    const id = window.setInterval(poll, POLL_MS);
+    const uid = window.setInterval(() => setUptime(Date.now() - startedAt), 1000);
+    onCleanup(() => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.clearInterval(uid);
+    });
+  });
+
+  // Close popover when clicking anywhere outside it.
+  function onDocClick(e: MouseEvent) {
+    const tgt = e.target as HTMLElement | null;
+    if (tgt?.closest("[data-diag-root]")) return;
+    setOpen(false);
+  }
+  onMount(() => {
+    document.addEventListener("click", onDocClick);
+    onCleanup(() => document.removeEventListener("click", onDocClick));
+  });
+
+  const errCount = () => diagEntries().length;
+  const hasErrors = () => errCount() > 0;
+
+  return (
+    <div style={footerStyle}>
+      <span style={cellStyle} title="Resident memory">
+        🧠 {stats() ? `${stats()!.rss_mb} MB` : "—"}
+      </span>
+      <span style={cellStyle} title="CPU usage (delta since last poll)">
+        ⚙ {stats() ? `${stats()!.cpu_pct.toFixed(1)}%` : "—"}
+      </span>
+      <span style={cellStyle} title="Open sessions">
+        🔌 {tabs().filter((t) => t.status === "connected").length} sessions
+      </span>
+      <span style={cellStyle} title="Uptime">
+        ⏱ {formatUptime(uptime())}
+      </span>
+      <div style={{ flex: 1 }} />
+      <div
+        data-diag-root
+        style={{ position: "relative", display: "flex", "align-items": "center" }}
+      >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen((v) => !v);
+          }}
+          style={{
+            ...errBtnStyle,
+            color: hasErrors() ? C.red : C.text2,
+            background: hasErrors() && open() ? C.redBg : "transparent",
+          }}
+          title={hasErrors() ? `${errCount()} log records` : "No recent errors"}
+        >
+          ⚠ {errCount()}
+          <span style={{ "font-size": "9px", "margin-left": "4px", opacity: 0.7 }}>
+            {open() ? "▾" : "▴"}
+          </span>
+        </button>
+        <Show when={open()}>
+          <DiagPopover />
+        </Show>
+      </div>
+    </div>
+  );
+}
+
+function DiagPopover() {
+  return (
+    <div style={popoverStyle}>
+      <div style={popoverHeader}>
+        <span style={{ "font-size": "11px", color: C.text2, "letter-spacing": "0.04em" }}>
+          RECENT LOG · {diagEntries().length}
+        </span>
+        <button
+          type="button"
+          onClick={() => clearDiag()}
+          style={clearBtnStyle}
+          disabled={diagEntries().length === 0}
+        >
+          Clear
+        </button>
+      </div>
+      <div style={popoverList}>
+        <Show
+          when={diagEntries().length > 0}
+          fallback={<div style={emptyRowStyle}>No log records yet.</div>}
+        >
+          <For each={[...diagEntries()].reverse()}>
+            {(e) => (
+              <div style={rowStyle}>
+                <span style={{ ...levelTagStyle, color: e.level === "error" ? C.red : C.yellow }}>
+                  {e.level.toUpperCase()}
+                </span>
+                <span style={tsStyle}>{formatTs(e.ts_ms)}</span>
+                <span style={targetStyle}>{e.target}</span>
+                <span style={msgStyle}>{e.message}</span>
+              </div>
+            )}
+          </For>
+        </Show>
+      </div>
+    </div>
+  );
+}
+
+function formatUptime(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
+function formatTs(ms: number): string {
+  const d = new Date(ms);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+const footerStyle = {
+  display: "flex",
+  "align-items": "center",
+  gap: "16px",
+  padding: "3px 12px",
+  background: C.bg2,
+  "border-top": `1px solid ${C.border}`,
+  "font-size": "11px",
+  color: C.text2,
+  "flex-shrink": 0,
+  "user-select": "none",
+  height: "22px",
+} as const;
+
+const cellStyle = {
+  display: "inline-flex",
+  "align-items": "center",
+  gap: "4px",
+  "white-space": "nowrap",
+} as const;
+
+const errBtnStyle = {
+  background: "transparent",
+  border: `1px solid transparent`,
+  "border-radius": "4px",
+  padding: "1px 8px",
+  "font-size": "11px",
+  cursor: "pointer",
+  "font-weight": 600,
+  display: "inline-flex",
+  "align-items": "center",
+} as const;
+
+const popoverStyle = {
+  position: "absolute",
+  bottom: "26px",
+  right: "0",
+  width: "560px",
+  "max-width": "90vw",
+  "max-height": "320px",
+  background: "rgba(28,28,30,0.97)",
+  "backdrop-filter": "blur(40px) saturate(180%)",
+  border: `1px solid ${C.border}`,
+  "border-radius": "10px",
+  "box-shadow": "0 12px 32px rgba(0,0,0,0.6)",
+  display: "flex",
+  "flex-direction": "column",
+  "z-index": "50",
+  overflow: "hidden",
+} as const;
+
+const popoverHeader = {
+  display: "flex",
+  "align-items": "center",
+  "justify-content": "space-between",
+  padding: "8px 12px",
+  "border-bottom": `1px solid ${C.border}`,
+} as const;
+
+const clearBtnStyle = {
+  background: C.bg3,
+  color: C.text,
+  border: `1px solid ${C.border}`,
+  "border-radius": "5px",
+  padding: "2px 9px",
+  "font-size": "11px",
+  cursor: "pointer",
+} as const;
+
+const popoverList = {
+  flex: 1,
+  "overflow-y": "auto",
+  padding: "4px 0",
+} as const;
+
+const rowStyle = {
+  display: "grid",
+  "grid-template-columns": "44px 60px 100px 1fr",
+  gap: "8px",
+  padding: "4px 12px",
+  "font-size": "11px",
+  "font-family": "ui-monospace, monospace",
+  "border-bottom": `1px solid ${C.borderSub}`,
+  "align-items": "baseline",
+} as const;
+
+const levelTagStyle = {
+  "font-weight": 700,
+  "font-size": "10px",
+} as const;
+
+const tsStyle = {
+  color: C.text3,
+} as const;
+
+const targetStyle = {
+  color: C.text2,
+  overflow: "hidden",
+  "text-overflow": "ellipsis",
+  "white-space": "nowrap",
+} as const;
+
+const msgStyle = {
+  color: C.text,
+  "word-break": "break-word",
+} as const;
+
+const emptyRowStyle = {
+  padding: "20px",
+  "text-align": "center",
+  color: C.text3,
+  "font-size": "12px",
+} as const;

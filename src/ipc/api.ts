@@ -96,6 +96,13 @@ export const api = {
   gitShowFileContent: (sessionId: string, cwd: string, path: string, rev?: string) =>
     invoke<string>("git_show_file_content", { sessionId, cwd, path, rev: rev ?? null }),
 
+  /** Snapshot of BOOKSHELL process resource usage (RSS in MB, CPU %). */
+  systemStats: () => invoke<SystemStats>("system_stats"),
+
+  /** Subscribe to backend WARN/ERROR log records. Fires once per record. */
+  onDiagLog: (cb: (entry: DiagLogEntry) => void) =>
+    listen<DiagLogEntry>("diag://log", (e) => cb(e.payload)),
+
   // Command buttons
   buttonsList: () => invoke<CommandButton[]>("buttons_list"),
   buttonsSave: (button: CommandButton) =>
@@ -207,6 +214,18 @@ export interface TabState {
 export interface TabsFile {
   tabs: TabState[];
   active_tab_id?: string | null;
+}
+
+export interface SystemStats {
+  rss_mb: number;
+  cpu_pct: number;
+}
+
+export interface DiagLogEntry {
+  ts_ms: number;
+  level: "warn" | "error";
+  target: string;
+  message: string;
 }
 
 export interface GeneralSettings {
