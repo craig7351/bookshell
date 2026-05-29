@@ -1,7 +1,8 @@
-import { createEffect, createSignal, onMount, Show } from "solid-js";
+import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { marked, type Renderer } from "marked";
 import mermaid from "mermaid";
 import hljs from "highlight.js";
+import DOMPurify from "dompurify";
 import { C } from "../theme";
 import { api } from "../ipc/api";
 
@@ -9,20 +10,105 @@ mermaid.initialize({
   startOnLoad: false,
   theme: "base",
   themeVariables: {
-    primaryColor: "#0a84ff",
+    // Driven by the shared design tokens so diagrams track the app theme.
+    primaryColor: C.accent,
     primaryTextColor: "#ffffff",
-    primaryBorderColor: "#0a84ff",
-    lineColor: "#98989d",
-    secondaryColor: "#30d158",
-    tertiaryColor: "#ff9f0a",
-    background: "#1c1c1e",
-    mainBkg: "#2c2c2e",
-    nodeBorder: "#48484a",
-    clusterBkg: "#1c1c1e",
-    titleColor: "#f2f2f7",
-    edgeLabelBackground: "#2c2c2e",
+    primaryBorderColor: C.accent,
+    lineColor: C.text2,
+    secondaryColor: C.green,
+    tertiaryColor: C.orange,
+    background: C.bg,
+    mainBkg: C.bg3,
+    nodeBorder: C.border,
+    clusterBkg: C.bg2,
+    titleColor: C.text,
+    edgeLabelBackground: C.bg3,
   },
 });
+
+// Inject the markdown viewer stylesheet once, generated from the shared design
+// tokens (C) so it stays in sync with the app theme instead of hard-coding
+// colors in index.html.
+const MD_VIEWER_STYLE_ID = "md-viewer-styles";
+if (typeof document !== "undefined" && !document.getElementById(MD_VIEWER_STYLE_ID)) {
+  const style = document.createElement("style");
+  style.id = MD_VIEWER_STYLE_ID;
+  style.textContent = `
+    .md-viewer {
+      color: ${C.text};
+      font-size: 14px;
+      line-height: 1.7;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .md-viewer h1, .md-viewer h2, .md-viewer h3,
+    .md-viewer h4, .md-viewer h5, .md-viewer h6 {
+      margin: 1.2em 0 0.4em;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+    .md-viewer h1 { font-size: 1.7em; color: ${C.cyan}; border-bottom: 1px solid ${C.border}; padding-bottom: 0.3em; }
+    .md-viewer h2 { font-size: 1.35em; color: ${C.accent}; border-bottom: 1px solid ${C.border}; padding-bottom: 0.2em; }
+    .md-viewer h3 { font-size: 1.1em; color: ${C.green}; }
+    .md-viewer h4 { color: ${C.orange}; }
+    .md-viewer h5, .md-viewer h6 { color: ${C.purple}; }
+    .md-viewer p { margin: 0.7em 0; }
+    .md-viewer strong { color: ${C.yellow}; }
+    .md-viewer em { color: ${C.orange}; font-style: italic; }
+    .md-viewer a { color: ${C.accent}; text-decoration: none; }
+    .md-viewer a:hover { color: ${C.cyan}; text-decoration: underline; }
+    .md-viewer code {
+      background: ${C.accentBg};
+      border: 1px solid ${C.accentBdr};
+      border-radius: 4px;
+      padding: 0.15em 0.4em;
+      font-size: 0.88em;
+      font-family: "SF Mono", "JetBrains Mono", "Cascadia Code", monospace;
+      color: ${C.cyan};
+    }
+    .md-viewer pre {
+      border: 1px solid ${C.border};
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 1em 0;
+      padding: 0;
+    }
+    .md-viewer pre code.hljs {
+      border-radius: 8px;
+      font-size: 0.85em;
+      font-family: "SF Mono", "JetBrains Mono", "Cascadia Code", monospace;
+      padding: 14px 16px;
+    }
+    /* inline code styling must not apply inside code blocks */
+    .md-viewer pre code { background: none; border: none; padding: 0; color: inherit; }
+    .md-viewer blockquote {
+      border-left: 3px solid ${C.accent};
+      margin: 0.8em 0;
+      padding: 0.2em 1em;
+      color: ${C.text2};
+      background: ${C.accentBg};
+      border-radius: 0 6px 6px 0;
+    }
+    .md-viewer ul, .md-viewer ol { padding-left: 1.6em; margin: 0.5em 0; }
+    .md-viewer li { margin: 0.25em 0; }
+    .md-viewer li::marker { color: ${C.accent}; }
+    .md-viewer table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 13px; }
+    .md-viewer th, .md-viewer td { border: 1px solid ${C.border}; padding: 6px 12px; text-align: left; }
+    .md-viewer th { background: ${C.accentBg}; color: ${C.cyan}; font-weight: 600; }
+    .md-viewer tr:nth-child(even) { background: rgba(255,255,255,0.03); }
+    .md-viewer img { max-width: 100%; border-radius: 6px; }
+    .md-viewer hr { border: none; border-top: 1px solid ${C.border}; margin: 1.5em 0; }
+    .md-viewer .mermaid-pending svg,
+    .md-viewer svg[id^="mermaid-"] {
+      max-width: 100%;
+      background: ${C.bg};
+      border-radius: 8px;
+      padding: 12px;
+      margin: 0.8em 0;
+      display: block;
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 // Custom renderer: mermaid → placeholder, others → highlight.js.
 const renderer: Partial<Renderer> = {
@@ -58,26 +144,44 @@ export function MarkdownViewer(props: Props) {
       .catch((e) => setError(String(e)));
   });
 
-  createEffect(async () => {
+  createEffect(() => {
     const md = content();
     if (md === null || !containerRef) return;
-    const html = await marked.parse(md);
-    containerRef.innerHTML = html;
 
-    // Render mermaid blocks sequentially.
-    const nodes = containerRef.querySelectorAll<HTMLElement>(".mermaid-pending");
-    for (const node of nodes) {
-      const graph = decodeURIComponent(node.dataset.graph ?? "");
-      if (!graph) continue;
-      const id = `mermaid-${++mermaidCounter}`;
-      try {
-        const { svg } = await mermaid.render(id, graph);
-        node.innerHTML = svg;
-        node.classList.remove("mermaid-pending");
-      } catch (err) {
-        node.innerHTML = `<pre style="color:${C.red};font-size:11px">${String(err)}</pre>`;
+    // Guard against the race where the file is switched mid-render: an earlier
+    // effect's async work (marked + sequential mermaid renders) could otherwise
+    // overwrite the newer content. onCleanup runs synchronously when the effect
+    // re-runs, flipping this flag so the stale pass bails before each write.
+    let cancelled = false;
+    onCleanup(() => { cancelled = true; });
+
+    (async () => {
+      const html = await marked.parse(md);
+      // Sanitize untrusted markdown (file content can come from any repo) before
+      // injecting as HTML. data-*/class are kept, so the mermaid placeholders
+      // below still resolve.
+      const safe = DOMPurify.sanitize(html);
+      if (cancelled || !containerRef) return;
+      containerRef.innerHTML = safe;
+
+      // Render mermaid blocks sequentially.
+      const nodes = containerRef.querySelectorAll<HTMLElement>(".mermaid-pending");
+      for (const node of nodes) {
+        if (cancelled) return;
+        const graph = decodeURIComponent(node.dataset.graph ?? "");
+        if (!graph) continue;
+        const id = `mermaid-${++mermaidCounter}`;
+        try {
+          const { svg } = await mermaid.render(id, graph);
+          if (cancelled) return;
+          node.innerHTML = svg;
+          node.classList.remove("mermaid-pending");
+        } catch (err) {
+          if (cancelled) return;
+          node.innerHTML = `<pre style="color:${C.red};font-size:11px">${String(err)}</pre>`;
+        }
       }
-    }
+    })();
   });
 
   return (

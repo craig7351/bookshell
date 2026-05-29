@@ -19,6 +19,7 @@ export const C = {
   accent:     "#0a84ff",
   accentBg:   "rgba(10,132,255,0.18)",
   accentBdr:  "rgba(10,132,255,0.4)",
+  cyan:       "#5ac8fa",
   green:      "#30d158",
   greenBg:    "rgba(48,209,88,0.15)",
   red:        "#ff453a",
