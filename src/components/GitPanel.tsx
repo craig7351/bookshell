@@ -407,6 +407,7 @@ function LogRow(p: { tabId: string; line: any }) {
 }
 
 function ViewerModal() {
+  const [maximized, setMaximized] = createSignal(false);
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") closeViewer();
   };
@@ -433,10 +434,11 @@ function ViewerModal() {
           "backdrop-filter": "blur(40px) saturate(180%)",
           color: C.text,
           border: `1px solid ${C.border}`,
-          "border-radius": "14px",
           "box-shadow": "0 24px 64px rgba(0,0,0,0.8)",
-          width: "min(1100px, 94vw)",
-          height: "min(760px, 90vh)",
+          width: maximized() ? "98vw" : "min(1100px, 94vw)",
+          height: maximized() ? "96vh" : "min(760px, 90vh)",
+          "border-radius": maximized() ? "10px" : "14px",
+          transition: "width 0.18s ease, height 0.18s ease",
           display: "flex",
           "flex-direction": "column",
           overflow: "hidden",
@@ -449,9 +451,41 @@ function ViewerModal() {
         <Show when={viewer().kind === "commit"}>
           <CommitViewerContent />
         </Show>
+        <MaximizeBtn maximized={maximized()} onToggle={() => setMaximized((m) => !m)} />
         <CloseX onClose={closeViewer} />
       </div>
     </div>
+  );
+}
+
+/** Top-right maximize/restore toggle for the viewer modal.
+ *  Sits left of CloseX; parent must be position: relative. */
+function MaximizeBtn(props: { maximized: boolean; onToggle: () => void }) {
+  const [hover, setHover] = createSignal(false);
+  return (
+    <button
+      onClick={props.onToggle}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title={props.maximized ? "Restore size" : "Maximize"}
+      style={{
+        position: "absolute",
+        top: "10px",
+        right: "46px",
+        background: hover() ? C.bgHover : "transparent",
+        color: hover() ? C.text : C.text3,
+        border: "none",
+        "font-size": "15px",
+        "line-height": "1",
+        cursor: "pointer",
+        padding: "3px 8px",
+        "border-radius": "6px",
+        "z-index": "10",
+        transition: "background 0.15s, color 0.15s",
+      }}
+    >
+      {props.maximized ? "⤡" : "⤢"}
+    </button>
   );
 }
 
@@ -671,7 +705,8 @@ function TabBtn(p: { active: boolean; onClick: () => void; children: string }) {
 }
 
 const modalHeader = {
-  padding: "10px 44px 10px 16px",
+  // Right padding clears the two absolute corner buttons (maximize + close).
+  padding: "10px 84px 10px 16px",
   "border-bottom": `1px solid ${C.border}`,
   display: "flex",
   "align-items": "center",
