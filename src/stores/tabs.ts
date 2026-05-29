@@ -81,7 +81,14 @@ export function bumpFit(id: string) {
 
 export function addTab(initial: Omit<Tab, "fitTick" | "passthrough"> & { passthrough?: boolean }): Tab {
   const tab: Tab = { passthrough: false, ...initial, fitTick: 0 };
-  setState("tabs", (prev) => [...prev, tab]);
+  // Insert right after the current active tab so the new tab appears
+  // next to where the user is, not at the bottom of the sidebar. Falls
+  // back to appending when there is no active tab (first tab added).
+  setState("tabs", (prev) => {
+    const idx = prev.findIndex((t) => t.id === state.activeTabId);
+    if (idx < 0) return [...prev, tab];
+    return [...prev.slice(0, idx + 1), tab, ...prev.slice(idx + 1)];
+  });
   setState("activeTabId", tab.id);
   return tab;
 }
