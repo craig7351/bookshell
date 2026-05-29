@@ -1,9 +1,14 @@
 /** macOS-style design tokens shared across all components. */
 
 export const C = {
+  // Three-tier surface hierarchy:
+  //   bg2 = chrome/panels (darkest, recedes)
+  //   bg  = main content / terminal (hero surface)
+  //   bg3 = elevated controls (inputs, pills) — sits ABOVE main content
+  // This lets the terminal area visually pop without any borders.
   bg:         "#1c1c1e",
-  bg2:        "#2c2c2e",
-  bg3:        "#3a3a3c",
+  bg2:        "#141416",
+  bg3:        "#2e2e30",
   bgHover:    "rgba(255,255,255,0.07)",
   bgActive:   "rgba(255,255,255,0.12)",
   border:     "rgba(255,255,255,0.1)",

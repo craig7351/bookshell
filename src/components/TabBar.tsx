@@ -68,6 +68,7 @@ export function TabBar(props: Props) {
   const [menu, setMenu] = createSignal<{ x: number; y: number; tab: Tab } | null>(null);
   const [renamingId, setRenamingId] = createSignal<string | null>(null);
   const [draggingId, setDraggingId] = createSignal<string | null>(null);
+  const [hoveredId, setHoveredId] = createSignal<string | null>(null);
   const [resizing, setResizing] = createSignal(false);
   /** Tab id under cursor (or "__end__"). Null when not over any drop target. */
   const [dropTargetId, setDropTargetId] = createSignal<string | null>(null);
@@ -177,6 +178,8 @@ export function TabBar(props: Props) {
           <div
             data-tab-slot={t.id}
             onMouseDown={(e) => startDrag(e, t.id)}
+            onMouseEnter={() => setHoveredId(t.id)}
+            onMouseLeave={() => setHoveredId((id) => (id === t.id ? null : id))}
             onClick={() => setActiveTab(t.id)}
             onDblClick={() => setRenamingId(t.id)}
             onContextMenu={(e) => openMenu(e, t)}
@@ -195,8 +198,20 @@ export function TabBar(props: Props) {
             tabindex={t.id === activeTabId() ? 0 : -1}
             style={{
               ...tabStyle,
-              background: t.id === activeTabId() ? C.bgActive : "transparent",
+              background: t.id === activeTabId()
+                ? C.accentBg
+                : hoveredId() === t.id
+                  ? C.bgHover
+                  : "transparent",
               "border-left-color": t.color ?? "transparent",
+              // Active state: subtle inset accent bar on the LEFT, layered
+              // *inside* the color-tag border so it doesn't fight it. When the
+              // user has set no color tag the bar is the only left accent.
+              "box-shadow": t.id === activeTabId()
+                ? `inset 2px 0 0 ${C.accent}`
+                : "none",
+              color: t.id === activeTabId() ? C.text : C.text2,
+              "font-weight": t.id === activeTabId() ? 600 : 400,
               opacity: draggingId() === t.id ? 0.35 : 1,
               "border-top": dropTargetId() === t.id && draggingId() && draggingId() !== t.id
                 ? `2px solid ${C.accent}`
@@ -242,7 +257,16 @@ export function TabBar(props: Props) {
                 e.stopPropagation();
                 closeTab(t.id);
               }}
-              style={closeBtnStyle}
+              style={{
+                ...closeBtnStyle,
+                // Hide × unless this row is hovered or active — reduces visual
+                // noise when many tabs are stacked. Reserve space (visibility
+                // instead of display) so labels don't jitter on hover.
+                visibility:
+                  hoveredId() === t.id || t.id === activeTabId()
+                    ? "visible"
+                    : "hidden",
+              }}
               title="Close (Ctrl+Shift+W)"
             >
               ×
@@ -302,7 +326,7 @@ const containerStyle = {
   background: C.bg2,
   display: "flex",
   "flex-direction": "column",
-  padding: "6px 4px",
+  padding: "4px 4px",
   gap: "1px",
   "overflow-y": "auto",
   "min-width": 0,
@@ -311,14 +335,16 @@ const containerStyle = {
 const tabStyle = {
   display: "flex",
   "flex-direction": "column",
-  padding: "5px 8px",
-  "border-radius": "6px",
+  // Tighter vertical padding — name row is now ~26px and the optional cwd row
+  // is ~14px. Previously each tab was ~42px which capped the visible list to
+  // ~10 entries on a typical 800px-tall window.
+  padding: "3px 8px 3px 6px",
+  "border-radius": "5px",
   cursor: "grab",
   "font-size": "12px",
-  color: C.text,
   "border-left": "3px solid transparent",
   "user-select": "none",
-  transition: "background 0.1s",
+  transition: "background 0.08s, color 0.08s",
 } as const;
 
 const tabTopRowStyle = {
@@ -335,7 +361,8 @@ const cwdRowStyle = {
   overflow: "hidden",
   "text-overflow": "ellipsis",
   "padding-left": "17px",
-  "margin-top": "2px",
+  "margin-top": "1px",
+  "line-height": "1.2",
 } as const;
 
 const renameInputStyle = {
