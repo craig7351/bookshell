@@ -1,4 +1,4 @@
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { C, overlayStyle as baseOverlay, dialogStyle as baseDialog, inputStyle, btnPrimary, btnSecondary, btnDanger } from "../theme";
 import { CloseX } from "./CloseX";
 import {
@@ -32,25 +32,57 @@ const empty = (): Connection => ({
 export function ConnectionDialog(props: Props) {
   const [editing, setEditing] = createSignal<Connection | null>(null);
   const [pwPrompt, setPwPrompt] = createSignal<{ conn: Connection; pw: string } | null>(null);
+  const [selectedIdx, setSelectedIdx] = createSignal(0);
+  let dialogRef: HTMLDivElement | undefined;
 
-  // ESC closes the dialog. When a sub-state (edit form / password prompt)
-  // is open, ESC backs out of that state first instead of closing outright.
+  // Keyboard for the list view: ESC closes the dialog (or backs out of a
+  // sub-state); Up/Down moves the selection; Enter opens the selected
+  // connection. Edit form / password prompt have their own inputs and
+  // are skipped here.
   onMount(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      if (editing()) {
+      if (e.key === "Escape") {
+        if (editing()) {
+          e.preventDefault();
+          setEditing(null);
+        } else if (pwPrompt()) {
+          e.preventDefault();
+          setPwPrompt(null);
+        } else {
+          e.preventDefault();
+          props.onClose();
+        }
+        return;
+      }
+      if (editing() || pwPrompt()) return;
+      const list = connections();
+      if (list.length === 0) return;
+      if (e.key === "ArrowDown") {
         e.preventDefault();
-        setEditing(null);
-      } else if (pwPrompt()) {
+        setSelectedIdx((i) => Math.min(list.length - 1, i + 1));
+      } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setPwPrompt(null);
-      } else {
+        setSelectedIdx((i) => Math.max(0, i - 1));
+      } else if (e.key === "Enter") {
         e.preventDefault();
-        props.onClose();
+        const idx = Math.min(selectedIdx(), list.length - 1);
+        pickConnection(list[idx]);
       }
     };
     document.addEventListener("keydown", onKey);
+    // Move focus to the dialog so the hidden xterm textarea stops
+    // receiving keystrokes — otherwise typing in the dialog leaks
+    // through to the background console.
+    dialogRef?.focus();
     onCleanup(() => document.removeEventListener("keydown", onKey));
+  });
+
+  // Keep the highlighted row visible when the list is long enough to scroll.
+  createEffect(() => {
+    const idx = selectedIdx();
+    if (editing() || pwPrompt()) return;
+    const row = dialogRef?.querySelector(`[data-conn-idx="${idx}"]`) as HTMLElement | null;
+    row?.scrollIntoView({ block: "nearest" });
   });
 
   function startEdit(c: Connection) {
@@ -83,7 +115,7 @@ export function ConnectionDialog(props: Props) {
 
   return (
     <div style={overlayStyle}>
-      <div style={dialogStyle}>
+      <div ref={dialogRef} tabindex="-1" style={{ ...dialogStyle, outline: "none" }}>
         <CloseX onClose={props.onClose} />
         <div style={{ display: "flex", "align-items": "center", "margin-bottom": "12px", "padding-right": "32px" }}>
           <strong style={{ "font-size": "16px" }}>Connections</strong>
@@ -97,7 +129,7 @@ export function ConnectionDialog(props: Props) {
           >
             <For each={connections()}>
               {(c, i) => (
-                <div style={rowStyle}>
+                <div data-conn-idx={i()} style={i() === selectedIdx() ? { ...rowStyle, background: C.accentBg } : rowStyle}>
                   <div style={reorderColStyle}>
                     <button
                       onClick={() => moveConnection(c.id, -1)}
