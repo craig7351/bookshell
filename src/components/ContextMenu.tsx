@@ -4,6 +4,13 @@ import { C } from "../theme";
 
 export interface MenuItem {
   label: string;
+  /** Optional leading glyph (emoji or unicode). Rendered in a fixed-width
+   *  column so labels align across rows whether an icon is set or not. */
+  icon?: string;
+  /** Optional muted second line below the label — used for long secondary
+   *  context (a path, a hint, the current value) that would otherwise blow
+   *  out the menu width. */
+  sublabel?: string;
   onClick?: () => void;
   separator?: boolean;
   danger?: boolean;
@@ -51,7 +58,8 @@ export function ContextMenu(props: Props) {
           border: `1px solid ${C.border}`,
           "border-radius": "10px",
           padding: "5px 0",
-          "min-width": "172px",
+          "min-width": "200px",
+          "max-width": "320px",
           "box-shadow": "0 8px 32px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.3)",
           "z-index": "200",
           "font-size": "13px",
@@ -72,7 +80,7 @@ export function ContextMenu(props: Props) {
                 }}
                 onMouseEnter={() => setSubmenuFor(item.submenu ? i() : null)}
                 style={{
-                  padding: "5px 14px",
+                  padding: "5px 12px",
                   cursor: "default",
                   display: "flex",
                   "align-items": "center",
@@ -82,10 +90,18 @@ export function ContextMenu(props: Props) {
                   "border-radius": "6px",
                   margin: "0 4px",
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.background = C.bgHover)}
+                onMouseOver={(e) =>
+                  (e.currentTarget.style.background = item.danger ? C.redBg : C.bgHover)
+                }
                 onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
               >
-                <span style={{ flex: 1 }}>{item.label}</span>
+                <span style={iconColStyle}>{item.icon ?? ""}</span>
+                <div style={{ flex: 1, "min-width": 0 }}>
+                  <div style={labelStyle}>{item.label}</div>
+                  <Show when={item.sublabel}>
+                    <div style={sublabelStyle}>{item.sublabel}</div>
+                  </Show>
+                </div>
                 {item.submenu && <span style={{ opacity: 0.5, "font-size": "11px" }}>▸</span>}
                 <Show when={item.submenu && submenuFor() === i()}>
                   <div
@@ -110,11 +126,23 @@ export function ContextMenu(props: Props) {
                             sub.onClick?.();
                             props.onClose();
                           }}
-                          style={{ padding: "5px 14px", cursor: "default", "border-radius": "6px", margin: "0 4px" }}
-                          onMouseOver={(e) => (e.currentTarget.style.background = C.bgHover)}
+                          style={{
+                            padding: "5px 12px",
+                            cursor: "default",
+                            "border-radius": "6px",
+                            margin: "0 4px",
+                            display: "flex",
+                            "align-items": "center",
+                            gap: "8px",
+                            color: sub.danger ? C.red : C.text,
+                          }}
+                          onMouseOver={(e) =>
+                            (e.currentTarget.style.background = sub.danger ? C.redBg : C.bgHover)
+                          }
                           onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
                         >
-                          {sub.label}
+                          <span style={iconColStyle}>{sub.icon ?? ""}</span>
+                          <span>{sub.label}</span>
                         </div>
                       )}
                     </For>
@@ -128,3 +156,31 @@ export function ContextMenu(props: Props) {
     </Portal>
   );
 }
+
+/** Fixed-width column for the leading icon. Reserved even when empty so
+ *  labels in the same menu stay vertically aligned. */
+const iconColStyle = {
+  width: "16px",
+  "text-align": "center",
+  "flex-shrink": 0,
+  "font-size": "13px",
+  "line-height": "1",
+} as const;
+
+const labelStyle = {
+  "line-height": "1.3",
+  overflow: "hidden",
+  "text-overflow": "ellipsis",
+  "white-space": "nowrap",
+} as const;
+
+const sublabelStyle = {
+  "font-size": "11px",
+  color: C.text3,
+  "font-family": "monospace",
+  "line-height": "1.3",
+  overflow: "hidden",
+  "text-overflow": "ellipsis",
+  "white-space": "nowrap",
+  "margin-top": "1px",
+} as const;

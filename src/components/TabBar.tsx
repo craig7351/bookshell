@@ -137,31 +137,38 @@ export function TabBar(props: Props) {
 
   function buildMenu(tab: Tab): MenuItem[] {
     return [
-      { label: "Rename (F2)", onClick: () => setRenamingId(tab.id) },
+      { icon: "✎", label: "Rename (F2)", onClick: () => setRenamingId(tab.id) },
       {
-        label: tab.cwd ? `📍 Edit cwd (${shortCwd(tab.cwd)})` : "📍 Mark cwd…",
+        icon: "📍",
+        label: tab.cwd ? "Edit cwd" : "Mark cwd…",
+        sublabel: tab.cwd ? shortCwd(tab.cwd) : undefined,
         onClick: () => openMarkCwd(tab.id),
       },
       {
-        label: tab.passthrough ? "🤖 Disable passthrough" : "🤖 Enable passthrough",
+        icon: "🤖",
+        label: tab.passthrough ? "Disable passthrough" : "Enable passthrough",
         onClick: () => toggleTabPassthrough(tab.id),
       },
       {
+        icon: "🎨",
         label: "Color",
         submenu: COLORS.map((c) => ({
-          label: c.name + (tab.color === c.value ? "  ✓" : ""),
+          label: c.name,
+          icon: tab.color === c.value ? "✓" : undefined,
           onClick: () => setTabColor(tab.id, c.value),
         })),
       },
       {
+        icon: "★",
         label: "Icon",
         submenu: ICONS.map((ic) => ({
-          label: ic.name + (tab.icon === ic.value ? "  ✓" : ""),
+          label: ic.name,
+          icon: tab.icon === ic.value ? "✓" : undefined,
           onClick: () => setTabIcon(tab.id, ic.value),
         })),
       },
       { separator: true, label: "" },
-      { label: "Close", danger: true, onClick: () => closeTab(tab.id) },
+      { icon: "🗑", label: "Close", danger: true, onClick: () => closeTab(tab.id) },
     ];
   }
 
