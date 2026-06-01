@@ -1,8 +1,11 @@
-import { createSignal, For, onMount, Show } from "solid-js";
+import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { api, type DirListing, type FsEntry } from "../ipc/api";
 import { activeTab, captureCwd } from "../stores/tabs";
-import { closeFiles } from "../stores/files";
-import { CloseX } from "./CloseX";
+import {
+  closeFiles,
+  filesShowHidden,
+  toggleFilesShowHidden,
+} from "../stores/files";
 import { C } from "../theme";
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|bmp|ico|svg|avif|tiff?)$/i;
@@ -20,14 +23,20 @@ function fmtSize(n: number): string {
   return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
-/** File-browser modal. Lists the active tab's session (local fs or SFTP),
+/** File-browser side panel. Lists the active tab's session (local fs or SFTP),
  *  navigates folders, and opens files with the OS default app — for SSH tabs
- *  the file is downloaded first (handled transparently by fs_download_file). */
+ *  the file is downloaded first (handled transparently by fs_download_file).
+ *
+ *  Renders as a flex column that fills its container — caller decides whether
+ *  it lives in the shared right-split column or in its own inline panel. */
 export function FileBrowser() {
   const [listing, setListing] = createSignal<DirListing | null>(null);
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [openingPath, setOpeningPath] = createSignal<string | null>(null);
+  /** What the path input currently shows. Falls out of sync with listing()
+   *  while the user is typing — committed via Enter or blur. */
+  const [pathDraft, setPathDraft] = createSignal("");
 
   async function navigate(path: string) {
     const t = activeTab();
@@ -38,7 +47,9 @@ export function FileBrowser() {
     setLoading(true);
     setError(null);
     try {
-      setListing(await api.fsListDir(t.sessionId, path));
+      const l = await api.fsListDir(t.sessionId, path);
+      setListing(l);
+      setPathDraft(l.path);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -85,135 +96,166 @@ export function FileBrowser() {
     navigate(start ?? "");
   });
 
+  /** Entries shown after hidden-file filter. Dotfiles are hidden by default
+   *  so SSH home dirs aren't dominated by `.cache` / `.config` noise. */
+  const visibleEntries = createMemo(() => {
+    const l = listing();
+    if (!l) return [];
+    if (filesShowHidden()) return l.entries;
+    return l.entries.filter((e) => !e.name.startsWith("."));
+  });
+
+  function commitPath() {
+    const v = pathDraft().trim();
+    const cur = listing()?.path ?? "";
+    if (v && v !== cur) navigate(v);
+    else setPathDraft(cur); // revert empties / no-op edits
+  }
+
   return (
-    <div onClick={closeFiles} style={overlay}>
-      <div onClick={(e) => e.stopPropagation()} style={dialog}>
-        <div style={header}>
-          <button
-            onClick={() => {
-              const p = listing()?.parent;
-              if (p != null) navigate(p);
-            }}
-            disabled={listing()?.parent == null}
-            title="Up one level"
-            style={navBtn(listing()?.parent == null)}
-          >
-            ↑
-          </button>
-          <button
-            onClick={() => navigate(listing()?.path ?? "")}
-            title="Refresh"
-            style={navBtn(false)}
-          >
-            ⟳
-          </button>
-          <span style={pathLabel}>{listing()?.path ?? "…"}</span>
-        </div>
+    <div style={panelStyle}>
+      <div style={headerStyle}>
+        <button
+          onClick={() => {
+            const p = listing()?.parent;
+            if (p != null) navigate(p);
+          }}
+          disabled={listing()?.parent == null}
+          title="Up one level"
+          style={navBtn(listing()?.parent == null)}
+        >
+          ↑
+        </button>
+        <button
+          onClick={() => navigate(listing()?.path ?? "")}
+          title="Refresh"
+          style={navBtn(false)}
+        >
+          ⟳
+        </button>
+        <button
+          onClick={toggleFilesShowHidden}
+          title={filesShowHidden() ? "Hide dotfiles" : "Show dotfiles"}
+          style={{
+            ...navBtn(false),
+            background: filesShowHidden() ? C.accentBg : "transparent",
+            color: filesShowHidden() ? C.accent : C.text2,
+            "border-color": filesShowHidden() ? C.accentBdr : C.border,
+          }}
+        >
+          .{filesShowHidden() ? "✓" : ""}
+        </button>
+        <input
+          value={pathDraft()}
+          onInput={(e) => setPathDraft(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitPath();
+              e.currentTarget.blur();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              setPathDraft(listing()?.path ?? "");
+              e.currentTarget.blur();
+            }
+          }}
+          onFocus={(e) => e.currentTarget.select()}
+          onBlur={commitPath}
+          spellcheck={false}
+          placeholder="path…"
+          title="Type a path and press Enter to jump"
+          style={pathInputStyle}
+        />
+        <button
+          onClick={closeFiles}
+          title="Close panel"
+          style={navBtn(false)}
+        >
+          ×
+        </button>
+      </div>
 
-        <div style={{ flex: 1, "overflow-y": "auto", "min-height": 0 }}>
-          <Show when={error()}>
-            <div style={{ padding: "12px 16px", color: C.red, "font-size": "12px", "white-space": "pre-wrap" }}>
-              {error()}
-            </div>
-          </Show>
-          <Show when={loading()}>
-            <div style={{ padding: "16px", opacity: 0.6, "font-size": "13px" }}>Loading…</div>
-          </Show>
-          <Show when={!loading() && listing()}>
-            <For
-              each={listing()!.entries}
-              fallback={<div style={{ padding: "16px", opacity: 0.5, "font-size": "13px" }}>Empty directory</div>}
-            >
-              {(e) => (
-                <div
-                  onClick={() => onEntry(e)}
-                  style={row}
-                  onMouseOver={(ev) => (ev.currentTarget.style.background = C.bgHover)}
-                  onMouseOut={(ev) => (ev.currentTarget.style.background = "transparent")}
+      <div style={{ flex: 1, "overflow-y": "auto", "min-height": 0 }}>
+        <Show when={error()}>
+          <div style={errStyle}>{error()}</div>
+        </Show>
+        <Show when={loading()}>
+          <div style={{ padding: "16px", opacity: 0.6, "font-size": "13px" }}>Loading…</div>
+        </Show>
+        <Show when={!loading() && listing()}>
+          <For
+            each={visibleEntries()}
+            fallback={
+              <div style={{ padding: "16px", opacity: 0.5, "font-size": "13px" }}>
+                {filesShowHidden() || listing()!.entries.length === 0
+                  ? "Empty directory"
+                  : "No visible entries (only dotfiles here — click the . button to show)"}
+              </div>
+            }
+          >
+            {(e) => (
+              <div
+                onClick={() => onEntry(e)}
+                style={row}
+                onMouseOver={(ev) => (ev.currentTarget.style.background = C.bgHover)}
+                onMouseOut={(ev) => (ev.currentTarget.style.background = "transparent")}
+              >
+                <span style={{ width: "20px", "text-align": "center", "flex-shrink": 0 }}>{iconFor(e)}</span>
+                <span
+                  style={{
+                    flex: 1,
+                    overflow: "hidden",
+                    "text-overflow": "ellipsis",
+                    "white-space": "nowrap",
+                    color: e.is_dir ? C.text : C.text2,
+                  }}
                 >
-                  <span style={{ width: "20px", "text-align": "center", "flex-shrink": 0 }}>{iconFor(e)}</span>
-                  <span
-                    style={{
-                      flex: 1,
-                      overflow: "hidden",
-                      "text-overflow": "ellipsis",
-                      "white-space": "nowrap",
-                      color: e.is_dir ? C.text : C.text2,
-                    }}
-                  >
-                    {e.name}
-                  </span>
-                  <Show when={openingPath() === e.path}>
-                    <span style={{ "font-size": "11px", color: C.accent, "flex-shrink": 0 }}>opening…</span>
-                  </Show>
-                  <Show when={!e.is_dir && openingPath() !== e.path}>
-                    <span style={{ "font-size": "11px", color: C.text3, "flex-shrink": 0 }}>{fmtSize(e.size)}</span>
-                  </Show>
-                </div>
-              )}
-            </For>
-          </Show>
-        </div>
-
-        <CloseX onClose={closeFiles} />
+                  {e.name}
+                </span>
+                <Show when={openingPath() === e.path}>
+                  <span style={{ "font-size": "11px", color: C.accent, "flex-shrink": 0 }}>opening…</span>
+                </Show>
+                <Show when={!e.is_dir && openingPath() !== e.path}>
+                  <span style={{ "font-size": "11px", color: C.text3, "flex-shrink": 0 }}>{fmtSize(e.size)}</span>
+                </Show>
+              </div>
+            )}
+          </For>
+        </Show>
       </div>
     </div>
   );
 }
 
-const overlay = {
-  position: "fixed",
-  inset: "0",
-  background: "rgba(0,0,0,0.6)",
-  display: "flex",
-  "align-items": "center",
-  "justify-content": "center",
-  "z-index": "200",
-} as const;
-
-const dialog = {
-  background: "rgba(28,28,30,0.98)",
-  "backdrop-filter": "blur(40px) saturate(180%)",
-  color: C.text,
-  border: `1px solid ${C.border}`,
-  "border-radius": "14px",
-  "box-shadow": "0 24px 64px rgba(0,0,0,0.8)",
-  width: "min(720px, 92vw)",
-  height: "min(640px, 88vh)",
+const panelStyle = {
+  flex: 1,
   display: "flex",
   "flex-direction": "column",
+  background: C.bg2,
+  "min-height": 0,
   overflow: "hidden",
-  position: "relative",
 } as const;
 
-const header = {
-  padding: "10px 44px 10px 12px",
+const headerStyle = {
+  padding: "6px 8px",
   "border-bottom": `1px solid ${C.border}`,
   display: "flex",
   "align-items": "center",
-  gap: "6px",
+  gap: "4px",
   "flex-shrink": 0,
 } as const;
 
-const pathLabel = {
+const pathInputStyle = {
+  flex: 1,
+  "min-width": 0,
+  background: C.bg,
+  color: C.text,
+  border: `1px solid ${C.border}`,
+  "border-radius": "5px",
+  padding: "3px 8px",
   "font-family": "monospace",
   "font-size": "12px",
-  color: C.text2,
-  overflow: "hidden",
-  "text-overflow": "ellipsis",
-  "white-space": "nowrap",
-  flex: 1,
-  "padding-left": "4px",
-} as const;
-
-const row = {
-  display: "flex",
-  "align-items": "center",
-  gap: "10px",
-  padding: "6px 16px",
-  cursor: "pointer",
-  "font-size": "13px",
-  "user-select": "none",
+  outline: "none",
 } as const;
 
 const navBtn = (disabled: boolean) =>
@@ -221,9 +263,26 @@ const navBtn = (disabled: boolean) =>
     background: "transparent",
     color: disabled ? C.text3 : C.text2,
     border: `1px solid ${C.border}`,
-    "border-radius": "6px",
-    padding: "2px 9px",
-    "font-size": "13px",
+    "border-radius": "5px",
+    padding: "2px 8px",
+    "font-size": "12px",
     cursor: disabled ? "default" : "pointer",
     "flex-shrink": 0,
   }) as const;
+
+const errStyle = {
+  padding: "12px 16px",
+  color: C.red,
+  "font-size": "12px",
+  "white-space": "pre-wrap",
+} as const;
+
+const row = {
+  display: "flex",
+  "align-items": "center",
+  gap: "10px",
+  padding: "5px 12px",
+  cursor: "pointer",
+  "font-size": "13px",
+  "user-select": "none",
+} as const;

@@ -13,7 +13,7 @@ import { MarkCwdDialog } from "./components/MarkCwdDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { TabBar } from "./components/TabBar";
 import { TerminalView } from "./components/Terminal";
-import { filesOpen, toggleFiles } from "./stores/files";
+import { filesOpen, filesWidth, setFilesWidth, toggleFiles } from "./stores/files";
 import { gitWidth, isGitOpen, setGitWidth, toggleGit } from "./stores/git";
 import { cycleLayout, layoutMode, setLayout } from "./stores/layout";
 import { api, type Connection } from "./ipc/api";
@@ -53,6 +53,7 @@ export default function App() {
   const [showButtonEditor, setShowButtonEditor] = createSignal(false);
   const [showSettings, setShowSettings] = createSignal(false);
   const [colDragging, setColDragging] = createSignal(false);
+  const [filesColDragging, setFilesColDragging] = createSignal(false);
   const [appVersion, setAppVersion] = createSignal("");
 
   function startColDrag(ev: MouseEvent) {
@@ -63,6 +64,23 @@ export default function App() {
     const onMove = (e: MouseEvent) => setGitWidth(startW + (startX - e.clientX));
     const onUp = () => {
       setColDragging(false);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+
+  /** Resize handle for the inline FileBrowser panel (horizontal/vertical
+   *  layouts only — right-split shares the Git column width). */
+  function startFilesColDrag(ev: MouseEvent) {
+    ev.preventDefault();
+    setFilesColDragging(true);
+    const startX = ev.clientX;
+    const startW = filesWidth();
+    const onMove = (e: MouseEvent) => setFilesWidth(startW + (startX - e.clientX));
+    const onUp = () => {
+      setFilesColDragging(false);
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
     };
@@ -316,7 +334,7 @@ export default function App() {
 
         {/* right-side toolbar */}
         <div style={{ "margin-left": "auto", display: "flex", gap: "4px", "align-items": "center" }}>
-          <Show when={activeTabId() && (isGitOpen(activeTabId()!) || isSideTermOpen(activeTabId()!))}>
+          <Show when={activeTabId() && (isGitOpen(activeTabId()!) || isSideTermOpen(activeTabId()!) || filesOpen())}>
             <button onClick={cycleLayout} style={toolBtn} title="Cycle layout">
               {LAYOUT_LABEL[layoutMode()]}
             </button>
@@ -422,13 +440,39 @@ export default function App() {
               <Show when={activeTabId() && isGitOpen(activeTabId()!)}>
                 <GitPanel />
               </Show>
+              <Show when={activeTabId() && filesOpen()}>
+                {/* Inline file-browser column with its own resize handle. */}
+                <div
+                  onMouseDown={startFilesColDrag}
+                  style={{
+                    width: "4px",
+                    cursor: "col-resize",
+                    background: filesColDragging() ? C.accent : "transparent",
+                    "border-right": `1px solid ${C.border}`,
+                    "flex-shrink": "0",
+                    transition: "background 0.15s",
+                  }}
+                  title="Drag to resize file browser"
+                />
+                <div style={{
+                  width: `${filesWidth()}px`,
+                  display: "flex",
+                  "flex-direction": "column",
+                  "flex-shrink": "0",
+                  "min-height": 0,
+                  background: C.bg2,
+                  "border-left": `1px solid ${C.border}`,
+                }}>
+                  <FileBrowser />
+                </div>
+              </Show>
               <Show when={activeTabId() && isSideTermOpen(activeTabId()!)}>
                 <SideTerminalPanel />
               </Show>
             </Show>
 
             {/* right-split: panels share a right column */}
-            <Show when={layoutMode() === "right-split" && activeTabId() && (isGitOpen(activeTabId()!) || isSideTermOpen(activeTabId()!))}>
+            <Show when={layoutMode() === "right-split" && activeTabId() && (isGitOpen(activeTabId()!) || isSideTermOpen(activeTabId()!) || filesOpen())}>
               {/* left-edge drag handle for column width */}
               <div
                 onMouseDown={startColDrag}
@@ -454,6 +498,9 @@ export default function App() {
                 <Show when={activeTabId() && isGitOpen(activeTabId()!)}>
                   <GitPanel />
                 </Show>
+                <Show when={activeTabId() && filesOpen()}>
+                  <FileBrowser />
+                </Show>
                 <Show when={activeTabId() && isSideTermOpen(activeTabId()!)}>
                   <SideTerminalPanel />
                 </Show>
@@ -477,9 +524,6 @@ export default function App() {
       </Show>
       <Show when={showSettings()}>
         <SettingsDialog onClose={() => setShowSettings(false)} />
-      </Show>
-      <Show when={filesOpen()}>
-        <FileBrowser />
       </Show>
       <Show when={markCwdTabId()}>
         {(id) => <MarkCwdDialog tabId={id()} onClose={closeMarkCwd} />}
