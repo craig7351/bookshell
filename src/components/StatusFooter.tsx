@@ -1,8 +1,19 @@
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { api, type SystemStats } from "../ipc/api";
-import { tabs } from "../stores/tabs";
+import { activeTab, activeTabId, tabs } from "../stores/tabs";
 import { clearDiag, diagEntries } from "../stores/diagnostics";
+import { gitState } from "../stores/git";
 import { C } from "../theme";
+
+/** Middle-truncate a path so the most distinctive parts (root + leaf) stay
+ *  visible. Example: `/home/craig/projects/bookshell/src` (max 36)
+ *                  → `/home/craig…/bookshell/src`. */
+function shortenPath(p: string, max = 48): string {
+  if (p.length <= max) return p;
+  const head = Math.ceil(max / 2) - 1;
+  const tail = Math.floor(max / 2) - 2;
+  return `${p.slice(0, head)}…${p.slice(-tail)}`;
+}
 
 const POLL_MS = 2000;
 const startedAt = Date.now();
@@ -46,21 +57,70 @@ export function StatusFooter() {
   const errCount = () => diagEntries().length;
   const hasErrors = () => errCount() > 0;
 
+  // Context cells (left side): tab cwd + git branch for the active tab. These
+  // come from existing stores so the footer doesn't pay any extra cost — we
+  // just surface them. Git info only appears when the Git panel has been
+  // opened for this tab (which is the same moment we have repo state).
+  const cwd = () => activeTab()?.cwd ?? null;
+  const gitInfo = () => {
+    const id = activeTabId();
+    if (!id) return null;
+    return gitState.data[id] ?? null;
+  };
+
   return (
     <div style={footerStyle}>
+      {/* — left: per-tab context — */}
+      <Show when={cwd()}>
+        <span style={{ ...cellStyle, color: C.text }} title={`cwd: ${cwd()}`}>
+          📍 {shortenPath(cwd()!)}
+        </span>
+      </Show>
+      <Show when={gitInfo()?.branch}>
+        {(b) => {
+          const info = gitInfo()!;
+          const ahead = info.ahead;
+          const behind = info.behind;
+          const trail =
+            ahead || behind
+              ? ` ${ahead ? `↑${ahead}` : ""}${behind ? `↓${behind}` : ""}`.trim()
+              : "";
+          return (
+            <span
+              style={cellStyle}
+              title={
+                info.upstream
+                  ? `Branch ${b()} · upstream ${info.upstream}${trail ? ` (${trail})` : ""}`
+                  : `Branch ${b()} (no upstream)`
+              }
+            >
+              🌿 {b()}
+              {trail && <span style={{ color: C.text3, "margin-left": "4px" }}>{trail}</span>}
+            </span>
+          );
+        }}
+      </Show>
+      <Show when={activeTab()?.passthrough}>
+        <span style={{ ...cellStyle, color: C.purple }} title="AI passthrough on">
+          🤖 passthrough
+        </span>
+      </Show>
+
+      <div style={{ flex: 1 }} />
+
+      {/* — right: system / process metrics — */}
+      <span style={cellStyle} title="Open sessions">
+        🔌 {tabs().filter((t) => t.status === "connected").length}
+      </span>
       <span style={cellStyle} title="Resident memory">
         🧠 {stats() ? `${stats()!.rss_mb} MB` : "—"}
       </span>
       <span style={cellStyle} title="CPU usage (delta since last poll)">
         ⚙ {stats() ? `${stats()!.cpu_pct.toFixed(1)}%` : "—"}
       </span>
-      <span style={cellStyle} title="Open sessions">
-        🔌 {tabs().filter((t) => t.status === "connected").length} sessions
-      </span>
       <span style={cellStyle} title="Uptime">
         ⏱ {formatUptime(uptime())}
       </span>
-      <div style={{ flex: 1 }} />
       <div
         data-diag-root
         style={{ position: "relative", display: "flex", "align-items": "center" }}
