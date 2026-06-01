@@ -728,27 +728,83 @@ const diffScrollArea = {
 
 function DiffBody(p: { body: string }) {
   // Color +/-/@@ lines for readability without running a syntax highlighter.
+  // file/hunk headers are styled as section dividers so a long multi-file
+  // commit diff stays navigable just by scrolling.
   const lines = p.body.split("\n");
   return (
     <For each={lines}>
       {(line) => {
-        let color: string = C.text;
-        let bg: string | undefined;
-        if (line.startsWith("+++") || line.startsWith("---")) color = C.purple;
-        else if (line.startsWith("+")) {
-          color = C.green;
-          bg = "rgba(48,209,88,0.08)";
-        } else if (line.startsWith("-")) {
-          color = C.red;
-          bg = "rgba(255,69,58,0.1)";
-        } else if (line.startsWith("@@")) color = "#5ac8fa";
-        else if (line.startsWith("diff --git")) color = C.orange;
-        else if (line.startsWith("commit ")) color = C.orange;
-        else if (line.startsWith("Author: ") || line.startsWith("Date: ")) color = C.text2;
-        return (
-          <div style={{ color, background: bg, padding: bg ? "0 4px" : "0" }}>{line}</div>
-        );
+        // file header: `diff --git a/foo b/foo` — section opener, gets a top
+        // border + bg tint so it visually separates files in a commit diff.
+        if (line.startsWith("diff --git")) {
+          return <div style={diffFileHeader}>{line}</div>;
+        }
+        // +++/--- file path lines belong to the same file header block.
+        if (line.startsWith("+++") || line.startsWith("---")) {
+          return <div style={diffFilePath}>{line}</div>;
+        }
+        // hunk header: subtle bg + cyan text, reads as inner section break.
+        if (line.startsWith("@@")) {
+          return <div style={diffHunkHeader}>{line}</div>;
+        }
+        // commit metadata lines (only present in `git show`-style bodies).
+        if (line.startsWith("commit ")) {
+          return <div style={{ color: C.orange, "font-weight": 600 }}>{line}</div>;
+        }
+        if (line.startsWith("Author: ") || line.startsWith("Date: ")) {
+          return <div style={{ color: C.text2 }}>{line}</div>;
+        }
+        // additions / deletions: full-bleed tinted bg so the eye traces the
+        // changed regions even when scanning quickly.
+        if (line.startsWith("+")) {
+          return <div style={diffAdd}>{line}</div>;
+        }
+        if (line.startsWith("-")) {
+          return <div style={diffDel}>{line}</div>;
+        }
+        // context line — keep neutral but slightly dimmed so the +/- pop.
+        return <div style={{ color: C.text2 }}>{line}</div>;
       }}
     </For>
   );
 }
+
+const diffFileHeader = {
+  color: C.orange,
+  "font-weight": 600,
+  background: "rgba(255,159,10,0.08)",
+  padding: "6px 8px",
+  "margin-top": "10px",
+  "border-top": `1px solid ${C.border}`,
+  "border-radius": "4px 4px 0 0",
+  position: "sticky",
+  top: "-12px",
+  "z-index": 1,
+  "backdrop-filter": "blur(6px)",
+} as const;
+
+const diffFilePath = {
+  color: C.purple,
+  background: "rgba(191,90,242,0.06)",
+  padding: "0 8px",
+} as const;
+
+const diffHunkHeader = {
+  color: "#5ac8fa",
+  background: "rgba(90,200,250,0.08)",
+  padding: "3px 8px",
+  "margin-top": "6px",
+  "border-radius": "3px",
+} as const;
+
+const diffAdd = {
+  color: C.green,
+  background: "rgba(48,209,88,0.10)",
+  padding: "0 8px",
+} as const;
+
+const diffDel = {
+  color: C.red,
+  background: "rgba(255,69,58,0.12)",
+  padding: "0 8px",
+} as const;

@@ -17,7 +17,7 @@ import { filesOpen, filesWidth, setFilesWidth, toggleFiles } from "./stores/file
 import { gitWidth, isGitOpen, setGitWidth, toggleGit } from "./stores/git";
 import { cycleLayout, layoutMode, setLayout } from "./stores/layout";
 import { api, type Connection } from "./ipc/api";
-import { loadConnections } from "./stores/connections";
+import { isMac, loadConnections } from "./stores/connections";
 import { loadGeneral } from "./stores/general";
 import { closeSearch, openSearch, searchTabId } from "./stores/search";
 import { actionFor } from "./stores/shortcuts";
@@ -295,12 +295,17 @@ export default function App() {
   return (
     <div style={{ display: "flex", "flex-direction": "column", height: "100%" }}>
       <div style={headerStyle}>
-        {/* macOS traffic lights */}
-        <div style={{ display: "flex", gap: "6px", "align-items": "center", "flex-shrink": 0 }}>
-          <div style={{ width: "12px", height: "12px", "border-radius": "50%", background: C.tRed }} />
-          <div style={{ width: "12px", height: "12px", "border-radius": "50%", background: C.tYellow }} />
-          <div style={{ width: "12px", height: "12px", "border-radius": "50%", background: C.tGreen }} />
-        </div>
+        {/* Decorative macOS traffic lights — only render on macOS, since the
+         *  OS chrome there visually expects them. Drawing fake lights on
+         *  Windows / Linux looked off because the real window controls are
+         *  still in the native top-right (or different style). */}
+        <Show when={isMac()}>
+          <div style={{ display: "flex", gap: "6px", "align-items": "center", "flex-shrink": 0 }}>
+            <div style={{ width: "12px", height: "12px", "border-radius": "50%", background: C.tRed }} />
+            <div style={{ width: "12px", height: "12px", "border-radius": "50%", background: C.tYellow }} />
+            <div style={{ width: "12px", height: "12px", "border-radius": "50%", background: C.tGreen }} />
+          </div>
+        </Show>
 
         <strong style={{ color: C.accent, "font-size": "13px", "letter-spacing": "0.04em" }}>BOOKSHELL</strong>
 

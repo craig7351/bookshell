@@ -66,6 +66,10 @@ export function isLinux(): boolean {
   return /linux/i.test(navigator.platform);
 }
 
+export function isMac(): boolean {
+  return /mac/i.test(navigator.platform);
+}
+
 export function defaultLocalShell(): string {
   return isWindows() ? "powershell.exe" : "/bin/bash";
 }
