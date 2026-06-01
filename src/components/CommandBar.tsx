@@ -10,6 +10,7 @@ interface Props {
 
 export function CommandBar(props: Props) {
   const [pendingConfirm, setPendingConfirm] = createSignal<CommandButton | null>(null);
+  const [hoveredId, setHoveredId] = createSignal<string | null>(null);
 
   loadButtons();
 
@@ -47,21 +48,33 @@ export function CommandBar(props: Props) {
   return (
     <div style={barStyle}>
       <For each={buttons()}>
-        {(b) => (
-          <button
-            onClick={() => handleClick(b)}
-            style={{
-              ...btnStyle,
-              background: b.color ?? C.bg3,
-              color: b.color ? "#fff" : C.text,
-            }}
-            title={b.command}
-          >
-            {b.icon ? `${b.icon} ` : ""}
-            {b.label}
-          </button>
-        )}
+        {(b) => {
+          // Ghost style: transparent background, colored border/text when the
+          // user set a color, neutral chrome otherwise. Hover fills with a
+          // subtle wash so the button still gives tactile feedback without
+          // shouting at idle.
+          const colored = !!b.color;
+          const hovered = () => hoveredId() === b.id;
+          return (
+            <button
+              onClick={() => handleClick(b)}
+              onMouseEnter={() => setHoveredId(b.id)}
+              onMouseLeave={() => setHoveredId((id) => (id === b.id ? null : id))}
+              style={{
+                ...btnStyle,
+                background: hovered() ? C.bgHover : "transparent",
+                color: colored ? (b.color as string) : C.text2,
+                "border-color": colored ? (b.color as string) : C.border,
+              }}
+              title={b.command}
+            >
+              {b.icon ? `${b.icon} ` : ""}
+              {b.label}
+            </button>
+          );
+        }}
       </For>
+      <div style={editSepStyle} />
       <button onClick={props.onEdit} style={editBtnStyle} title="Edit buttons">
         ⚙
       </button>
@@ -112,8 +125,8 @@ export function CommandBar(props: Props) {
 const barStyle = {
   display: "flex",
   "flex-wrap": "wrap",
-  gap: "5px",
-  padding: "5px 8px",
+  gap: "6px",
+  padding: "6px 10px",
   background: C.bg2,
   "border-top": `1px solid ${C.border}`,
   "align-items": "center",
@@ -121,7 +134,7 @@ const barStyle = {
 
 const btnStyle = {
   border: `1px solid ${C.border}`,
-  "border-radius": "6px",
+  "border-radius": "5px",
   padding: "3px 10px",
   "font-size": "12px",
   cursor: "pointer",
@@ -129,17 +142,27 @@ const btnStyle = {
   "max-width": "240px",
   overflow: "hidden",
   "text-overflow": "ellipsis",
+  "font-weight": 500,
+  transition: "background 0.08s",
+} as const;
+
+/** Visual divider before the Edit button, so the ⚙ reads as a separate
+ *  configuration affordance instead of "just another command button". */
+const editSepStyle = {
+  "margin-left": "auto",
+  width: "1px",
+  height: "16px",
+  background: C.border,
 } as const;
 
 const editBtnStyle = {
   background: "transparent",
   color: C.text3,
-  border: `1px dashed ${C.borderSub}`,
-  "border-radius": "6px",
-  padding: "3px 10px",
+  border: `1px solid ${C.borderSub}`,
+  "border-radius": "5px",
+  padding: "3px 9px",
   cursor: "pointer",
   "font-size": "12px",
-  "margin-left": "auto",
 } as const;
 
 const confirmOverlayStyle = overlayStyle;
