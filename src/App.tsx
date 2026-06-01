@@ -307,9 +307,25 @@ export default function App() {
         <Show when={activeTab()}>
           {(t) => (
             <span style={{ "font-size": "12px", color: C.text2, display: "flex", "align-items": "center", gap: "6px" }}>
-              <span style={{ color: t().status === "connected" ? C.green : C.yellow }}>
-                {t().status === "connected" ? "●" : "◐"} {t().status}
-              </span>
+              {/* "connected" is the steady state — drop the text so the
+               *  header stops yelling "everything is fine" on every active
+               *  tab. Show transient/broken states with a glyph + label. */}
+              <Show when={t().status !== "connected"}>
+                <span
+                  class={t().status === "connecting" ? "bs-pulse" : undefined}
+                  style={{
+                    color:
+                      t().status === "error"
+                        ? C.red
+                        : t().status === "disconnected"
+                          ? C.text3
+                          : C.yellow,
+                    "font-weight": t().status === "error" ? 600 : 400,
+                  }}
+                >
+                  {t().status === "connecting" ? "◐" : t().status === "error" ? "!" : "○"} {t().status}
+                </span>
+              </Show>
               <Show when={t().errorMessage}>
                 <span style={{ color: C.red }}>{t().errorMessage}</span>
               </Show>

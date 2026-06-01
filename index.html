@@ -23,6 +23,15 @@
       button { font-family: inherit; }
       input, textarea, select { font-family: inherit; }
 
+      /* Tab status pulse — used by the "connecting" glyph in TabBar and the
+         header so transient states are immediately legible without needing
+         text labels. */
+      @keyframes bs-pulse {
+        0%, 100% { opacity: 1; }
+        50%      { opacity: 0.3; }
+      }
+      .bs-pulse { animation: bs-pulse 1.2s ease-in-out infinite; }
+
       /* Markdown viewer (.md-viewer) styles are injected at runtime from the
          shared design tokens — see src/components/MarkdownViewer.tsx. */
     </style>

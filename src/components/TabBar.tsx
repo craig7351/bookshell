@@ -227,9 +227,25 @@ export function TabBar(props: Props) {
             title={t.errorMessage ?? t.name}
           >
           <div style={tabTopRowStyle}>
-            <span style={{ color: statusColor[t.status], "font-size": "10px", width: "12px" }}>
-              {statusGlyph[t.status]}
-            </span>
+            {/* Connected is the expected steady state — hide its dot entirely
+             *  so the bar doesn't feel like 20 "everything's fine" status
+             *  lights. Only show the indicator for transient or broken
+             *  states; connecting pulses to feel alive. */}
+            <Show when={t.status !== "connected"}>
+              <span
+                class={t.status === "connecting" ? "bs-pulse" : undefined}
+                style={{
+                  color: statusColor[t.status],
+                  "font-size": "10px",
+                  width: "12px",
+                  "flex-shrink": 0,
+                  "font-weight": t.status === "error" ? 700 : 400,
+                }}
+                title={t.status}
+              >
+                {statusGlyph[t.status]}
+              </span>
+            </Show>
             <Show when={t.passthrough}>
               <span title="AI passthrough on" style={{ "font-size": "11px" }}>🤖</span>
             </Show>
