@@ -1,6 +1,7 @@
 mod buttons;
 mod clipboard;
 mod config;
+mod files;
 mod general;
 mod git;
 mod git_watch;
@@ -82,6 +83,9 @@ pub fn run() {
             git::git_commit_detail,
             git::git_commit_file_diff,
             git::git_show_file_content,
+            files::fs_list_dir,
+            files::fs_download_file,
+            files::fs_open_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

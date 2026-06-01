@@ -37,6 +37,8 @@ arboard = "3"
 png = "0.17"
 sysinfo = "0.32"
 base64 = "0.22"
+russh-sftp = "2.1"
+open = "5"
 
 [target."cfg(windows)".dependencies]
 webview2-com = "0.38"

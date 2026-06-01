@@ -3,6 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { ButtonEditor } from "./components/ButtonEditor";
 import { CommandBar } from "./components/CommandBar";
 import { ConnectionDialog } from "./components/ConnectionDialog";
+import { FileBrowser } from "./components/FileBrowser";
 import { GitPanel } from "./components/GitPanel";
 import { SideTerminalPanel } from "./components/SideTerminal";
 import { StatusFooter } from "./components/StatusFooter";
@@ -12,6 +13,7 @@ import { MarkCwdDialog } from "./components/MarkCwdDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { TabBar } from "./components/TabBar";
 import { TerminalView } from "./components/Terminal";
+import { filesOpen, toggleFiles } from "./stores/files";
 import { gitWidth, isGitOpen, setGitWidth, toggleGit } from "./stores/git";
 import { cycleLayout, layoutMode, setLayout } from "./stores/layout";
 import { api, type Connection } from "./ipc/api";
@@ -346,6 +348,19 @@ export default function App() {
             🌿 Git
           </button>
           <button
+            onClick={() => { if (activeTabId()) toggleFiles(); }}
+            style={{
+              ...toolBtn,
+              background: filesOpen() ? C.accentBg : "transparent",
+              color: filesOpen() ? C.accent : C.text2,
+              border: `1px solid ${filesOpen() ? C.accentBdr : C.border}`,
+            }}
+            title="File browser"
+            disabled={!activeTabId()}
+          >
+            📁 Files
+          </button>
+          <button
             onClick={() => {
               const id = activeTabId();
               if (!id) return;
@@ -462,6 +477,9 @@ export default function App() {
       </Show>
       <Show when={showSettings()}>
         <SettingsDialog onClose={() => setShowSettings(false)} />
+      </Show>
+      <Show when={filesOpen()}>
+        <FileBrowser />
       </Show>
       <Show when={markCwdTabId()}>
         {(id) => <MarkCwdDialog tabId={id()} onClose={closeMarkCwd} />}

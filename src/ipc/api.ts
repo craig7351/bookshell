@@ -30,6 +30,22 @@ export interface Connection {
   icon?: string | null;
 }
 
+export interface FsEntry {
+  name: string;
+  /** Absolute path of this entry (server-computed). */
+  path: string;
+  is_dir: boolean;
+  size: number;
+}
+
+export interface DirListing {
+  /** Absolute directory that was listed. */
+  path: string;
+  /** Parent directory, or null at the filesystem root. */
+  parent: string | null;
+  entries: FsEntry[];
+}
+
 export const api = {
   // SSH
   sshConnect: (params: {
@@ -106,6 +122,18 @@ export const api = {
    *  rev = undefined → working-tree file, "staged" → index, any hash → commit. */
   gitShowFileContent: (sessionId: string, cwd: string, path: string, rev?: string) =>
     invoke<string>("git_show_file_content", { sessionId, cwd, path, rev: rev ?? null }),
+
+  // File browser (local fs for local tabs, SFTP for SSH tabs)
+  /** List a directory. Empty path resolves to the session's home dir.
+   *  Paths in the result are absolute and computed server-side. */
+  fsListDir: (sessionId: string, path: string) =>
+    invoke<DirListing>("fs_list_dir", { sessionId, path }),
+  /** Make a file available locally and return its local path. Local tabs pass
+   *  through; remote files are pulled via SFTP into a temp dir. */
+  fsDownloadFile: (sessionId: string, path: string) =>
+    invoke<string>("fs_download_file", { sessionId, path }),
+  /** Open a local path with the OS default application. */
+  fsOpenPath: (path: string) => invoke<void>("fs_open_path", { path }),
 
   /** Snapshot of BOOKSHELL process resource usage (RSS in MB, CPU %). */
   systemStats: () => invoke<SystemStats>("system_stats"),
