@@ -217,8 +217,11 @@ export function TabBar(props: Props) {
               "box-shadow": t.id === activeTabId()
                 ? `inset 2px 0 0 ${C.accent}`
                 : "none",
-              color: t.id === activeTabId() ? C.text : C.text2,
-              "font-weight": t.id === activeTabId() ? 600 : 400,
+              // Inactive tabs use the bright primary text (not the dimmed
+              // text2) — at 55% opacity the names were hard to read in a long
+              // list. Differentiate active purely via weight + accent bar.
+              color: C.text,
+              "font-weight": t.id === activeTabId() ? 600 : 500,
               opacity: draggingId() === t.id ? 0.35 : 1,
               "border-top": dropTargetId() === t.id && draggingId() && draggingId() !== t.id
                 ? `2px solid ${C.accent}`
@@ -364,7 +367,7 @@ const tabStyle = {
   padding: "3px 8px 3px 6px",
   "border-radius": "5px",
   cursor: "grab",
-  "font-size": "12px",
+  "font-size": "13px",
   "border-left": "3px solid transparent",
   "user-select": "none",
   transition: "background 0.08s, color 0.08s",
@@ -378,8 +381,8 @@ const tabTopRowStyle = {
 } as const;
 
 const cwdRowStyle = {
-  "font-size": "10px",
-  color: C.text3,
+  "font-size": "11px",
+  color: C.text2,
   "white-space": "nowrap",
   overflow: "hidden",
   "text-overflow": "ellipsis",
