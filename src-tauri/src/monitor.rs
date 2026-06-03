@@ -210,13 +210,39 @@ pub fn diag_record_stall(gap_ms: u64) {
 /// Spawn the watchdog thread. Wakes every 5 s; if no heartbeat has arrived for
 /// longer than `threshold`, logs one UNRESPONSIVE line (deduped) and a
 /// RECOVERED line when pings resume.
+///
+/// The same thread also drops a periodic RSS breadcrumb into the debug log.
+/// Rationale: an OOM abort (`handle_alloc_error`) bypasses the panic hook, so
+/// a crash from memory exhaustion leaves no RUST-PANIC line — but a trail of
+/// climbing MEM lines right before the session ends tells the story.
 pub fn start_watchdog() {
     let cell = heartbeat_cell();
     std::thread::spawn(move || {
         let threshold = Duration::from_secs(10);
         let mut outage = false;
+        // RSS breadcrumb state: log every 60 s, or immediately on a big jump.
+        let mut sys = System::new();
+        let pid = sysinfo::get_current_pid().unwrap_or_else(|_| Pid::from(0));
+        let mut last_mem_log = Instant::now() - Duration::from_secs(3600);
+        let mut last_rss_mb: u64 = 0;
         loop {
             std::thread::sleep(Duration::from_secs(5));
+
+            // — memory breadcrumb —
+            sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
+            if let Some(proc) = sys.process(pid) {
+                let rss_mb = proc.memory() / (1024 * 1024);
+                let jumped = rss_mb > last_rss_mb.saturating_add(256); // +256MB spike
+                if jumped || last_mem_log.elapsed() >= Duration::from_secs(60) {
+                    append_debug(&format!(
+                        "MEM rss={} MB{}",
+                        rss_mb,
+                        if jumped { " (spike)" } else { "" }
+                    ));
+                    last_mem_log = Instant::now();
+                    last_rss_mb = rss_mb;
+                }
+            }
             // No heartbeat seen yet → frontend still loading, stay quiet.
             let Some(gap) = cell.lock().ok().and_then(|g| *g).map(|t| t.elapsed()) else {
                 continue;

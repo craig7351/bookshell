@@ -190,11 +190,6 @@ pub async fn fs_download_file(
         }
     }
 
-    let bytes = sftp
-        .read(path.clone())
-        .await
-        .map_err(|e| format!("sftp read {path}: {e}"))?;
-
     // file_name() strips any directory component, so the basename can't escape
     // the download dir via path traversal.
     let basename = Path::new(&path)
@@ -207,9 +202,21 @@ pub async fn fs_download_file(
         .await
         .map_err(|e| format!("create download dir: {e}"))?;
     let local = dir.join(basename);
-    tokio::fs::write(&local, &bytes)
+
+    // Stream remote → local in chunks instead of buffering the whole file.
+    // Peak memory stays at the copy buffer size regardless of file size —
+    // a 256 MB read used to allocate 256 MB+ in one shot, which is exactly
+    // the kind of burst that can trip an OOM abort on a loaded machine.
+    let mut remote = sftp
+        .open(path.clone())
         .await
-        .map_err(|e| format!("write {}: {e}", local.display()))?;
+        .map_err(|e| format!("sftp open {path}: {e}"))?;
+    let mut out = tokio::fs::File::create(&local)
+        .await
+        .map_err(|e| format!("create {}: {e}", local.display()))?;
+    tokio::io::copy(&mut remote, &mut out)
+        .await
+        .map_err(|e| format!("download {path}: {e}"))?;
 
     Ok(local.to_string_lossy().into_owned())
 }

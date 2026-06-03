@@ -10,7 +10,7 @@ BOOKSHELL is a **desktop SSH/local-shell terminal emulator designed for AI agent
 
 The signature feature is **AI Passthrough Mode**: when active, nearly all keyboard shortcuts bypass the app and reach the remote shell directly, allowing an AI agent controlling the keyboard to operate freely without fighting the app's own hotkeys.
 
-Current state: **Phase 1** (actively developed). The codebase is clean and modular. Two files have uncommitted changes at conversation start: `src-tauri/src/git.rs` and `src/components/GitPanel.tsx`.
+Current state: **v1.1.0** (actively developed). The codebase is clean and modular.
 
 ---
 
@@ -43,21 +43,29 @@ bookshell/
 │   │   ├── ConnectionDialog.tsx # SSH / local-shell profile form
 │   │   ├── GitPanel.tsx        # Git status / log / diff side panel
 │   │   ├── SideTerminal.tsx    # Secondary PTY on same session
+│   │   ├── FileBrowser.tsx     # File browser side panel (local fs / SFTP)
 │   │   ├── MarkCwdDialog.tsx   # Save working directory to tab
 │   │   ├── SettingsDialog.tsx  # Font size, scrollback, backup/restore
 │   │   ├── ButtonEditor.tsx    # Edit custom command buttons
-│   │   ├── ContextMenu.tsx     # Right-click menu
+│   │   ├── ContextMenu.tsx     # Right-click menu (icon + sublabel support)
+│   │   ├── MarkdownViewer.tsx  # Markdown preview (marked + hljs + mermaid)
+│   │   ├── StatusFooter.tsx    # Bottom bar: tab context + process metrics
 │   │   └── CloseX.tsx          # Reusable ✕ button
 │   ├── stores/                 # Solid.js reactive state (signals + stores)
 │   │   ├── tabs.ts             # Tabs list, active tab, passthrough flag
-│   │   ├── connections.ts      # Connection profiles
+│   │   ├── connections.ts      # Connection profiles; isWindows/isLinux/isMac
 │   │   ├── buttons.ts          # Custom macro buttons
 │   │   ├── git.ts              # Git panel view state
+│   │   ├── files.ts            # File browser open/width/show-hidden
 │   │   ├── general.ts          # Font size, scrollback
+│   │   ├── layout.ts           # Panel layout mode (horizontal/vertical/right-split)
 │   │   ├── search.ts           # Terminal search state
+│   │   ├── shortcuts.ts        # User-customizable tab shortcuts
+│   │   ├── diagnostics.ts      # In-app warn/error log buffer (footer ⚠ popover)
 │   │   └── sideTerm.ts         # Side-terminal visibility
-│   └── ipc/
-│       └── api.ts              # All `invoke()` calls to Rust backend
+│   ├── ipc/
+│   │   └── api.ts              # All `invoke()` calls to Rust backend
+│   └── theme.ts                # Design tokens (C.*), xterm theme, shared styles
 │
 ├── src-tauri/                  # Rust backend
 │   └── src/
@@ -66,11 +74,15 @@ bookshell/
 │       ├── ssh.rs              # SSH sessions: connect, PTY, write, resize, exec
 │       ├── local_pty.rs        # Local shell PTY: spawn, read/write threads
 │       ├── git.rs              # Git commands over SSH exec or local process; parsing
+│       ├── git_watch.rs        # Filesystem/poll watcher emitting git://changed events
+│       ├── files.rs            # File browser: list dir, streaming SFTP download, OS open
+│       ├── clipboard.rs        # Clipboard image paste (local path / SSH upload)
 │       ├── config.rs           # Connection profiles — TOML read/write
 │       ├── buttons.rs          # Macro buttons — JSON read/write
 │       ├── tabs.rs             # Tab list — JSON persistence
 │       ├── general.rs          # Settings — JSON persistence
-│       ├── logger.rs           # File + stderr logging setup
+│       ├── logger.rs           # url_open (http/https only)
+│       ├── monitor.rs          # system_stats, diag events, panic hook, watchdog, debug log
 │       └── webview.rs          # Windows WebView2 GPU/DPI flags
 │
 ├── index.html                  # HTML template (dark Catppuccin theme)
@@ -168,6 +180,19 @@ src/ipc/api.ts  ──invoke──►   src-tauri/src/lib.rs  (dispatch table)
 - Font size (8–24 px), scrollback buffer (100–50 000 lines)
 - JSON export/import of tabs + connections + buttons (full backup)
 
+### 11. File Browser (📁, v1.1.0)
+- Side panel listing the active tab's directory — local fs for local tabs, SFTP for SSH tabs
+- Editable path bar (Enter to jump, Esc to revert); dotfiles hidden by default (`.` toggle)
+- Click a file → opens with OS default app; remote files **stream** to a temp dir first (chunked `tokio::io::copy`, never whole-file in RAM; 256 MB cap)
+- Renders in the shared right-split column with Git / Side terminal, or its own resizable column in other layouts
+
+### 12. Crash Diagnostics (`monitor.rs`)
+- **Persistent debug log** at `~/Documents/BOOKSHELL/bookshell-debug.log` — the post-mortem "black box" (see `debug.md`)
+- Markers written: `SESSION-START` (each launch), `RUST-PANIC` (panic hook), `FRONTEND-STALL` / `FRONTEND-UNRESPONSIVE` / `FRONTEND-RECOVERED` (heartbeat watchdog), `MEM rss=N MB` (every 60 s + on +256 MB spikes)
+- The MEM breadcrumb exists because an **OOM abort (`handle_alloc_error`) bypasses the panic hook** — a climbing RSS trail right before a session ends is the only evidence
+- Known crash signature: Windows exception `0xc0000409` with exception-data `7` (`FAST_FAIL_FATAL_APP_EXIT`) = Rust `abort()`; if no `RUST-PANIC` line accompanies it, suspect OOM
+- On the dev machine, WER LocalDumps is enabled (HKCU) for `BOOKSHELL.exe` / portable exe → minidumps land in `%LOCALAPPDATA%\CrashDumps`
+
 ---
 
 ## State Management (Frontend)
@@ -177,11 +202,15 @@ Solid.js signals and stores — **no Redux, no Context API**.
 | Store file | What it holds |
 |---|---|
 | `tabs.ts` | `tabs[]`, `activeTabId`, `passthroughMode` signal |
-| `connections.ts` | Connection profile list (synced from backend) |
+| `connections.ts` | Connection profile list (synced from backend); platform helpers |
 | `buttons.ts` | Custom macro button list |
 | `git.ts` | Git panel open/closed, current view (status/log/diff), selected file |
+| `files.ts` | File browser open/closed, panel width, show-hidden toggle |
+| `layout.ts` | Panel layout mode: `horizontal` / `vertical` / `right-split` |
 | `general.ts` | `fontSize`, `scrollback` |
 | `search.ts` | Search query, match index, search panel visible |
+| `shortcuts.ts` | User-customizable tab cycle/move key bindings |
+| `diagnostics.ts` | Recent warn/error records surfaced in the footer ⚠ popover |
 | `sideTerm.ts` | Side terminal visible, session ID |
 
 ---
@@ -202,7 +231,9 @@ Tauri resolves these via the `directories` crate:
 | Buttons | `%APPDATA%\bookshell\buttons.json` | JSON |
 | Tab list | `%APPDATA%\bookshell\tabs.json` | JSON |
 | General settings | `%APPDATA%\bookshell\general.json` | JSON |
-| Log file | `%LOCALAPPDATA%\bookshell\logs\bookshell.log` | Text |
+| Debug log (crash black box) | `~\Documents\BOOKSHELL\bookshell-debug.log` | Text |
+| Remote file downloads (temp) | `%TEMP%\bookshell-downloads\` | — |
+| Crash minidumps (if WER LocalDumps enabled) | `%LOCALAPPDATA%\CrashDumps\` | .dmp |
 
 ---
 
@@ -260,4 +291,6 @@ Rust toolchain: stable, minimum 1.77. The Tauri CLI is installed via npm (`@taur
 - **Adding a frontend component**: create in `src/components/`, import into `App.tsx` or the parent component. Use Solid.js signals — no React hooks.
 - **Stores are the source of truth**: components read from stores, call IPC to mutate backend, then update stores on success.
 - **Session routing**: check `tab.kind` (`"ssh"` | `"local"`) before routing commands — `git.rs` dispatches differently for each kind.
-- **No global CSS framework**: styles are inline or in `<style>` blocks inside components. Color palette is Catppuccin Mocha (`#1e1e2e` bg, `#cdd6f4` fg, `#89b4fa` accent).
+- **No global CSS framework**: styles are inline style objects inside components. All colors/styles come from the design tokens in `src/theme.ts` (`C.*`) — a macOS-dark palette (`#1c1c1e` main bg, `#141416` panel chrome, `#0a84ff` accent). Never hard-code a hex that exists as a token.
+- **Surface hierarchy**: `C.bg2` (darkest) = chrome/panels, `C.bg` = main terminal surface, `C.bg3` = elevated controls. Keep new panels on `bg2` so the terminal stays the visual hero.
+- **Debugging a crash**: check `~/Documents/BOOKSHELL/bookshell-debug.log` first (see §12 Crash Diagnostics), then Windows Event Log (`Application Error` provider) and `%LOCALAPPDATA%\CrashDumps`.
