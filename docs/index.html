@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BOOKSHELL — 專為 AI Agent 打造的 SSH 終端機</title>
+<meta name="description" content="BOOKSHELL 是一款專為 AI agent 工作流設計的桌面 SSH／本機終端機。基於 Tauri 2 + SolidJS，支援多分頁、Git 面板、副視窗終端、AI Passthrough 模式。" />
+<meta property="og:title" content="BOOKSHELL — 專為 AI Agent 打造的 SSH 終端機" />
+<meta property="og:description" content="多分頁 SSH／本機 shell、Git view、副視窗終端、AI Passthrough 模式。Windows / macOS / Linux 原生應用。" />
+<meta property="og:image" content="bookshell.png" />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #1c1c1e;
+    --bg2: #141416;
+    --bg3: #2a2a2d;
+    --line: #2e2e32;
+    --txt: #ececf1;
+    --muted: #9a9aa2;
+    --accent: #0a84ff;
+    --accent2: #30d158;
+    --green: #30d158;
+    --yellow: #ffd60a;
+    --radius: 14px;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "Noto Sans TC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--txt);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  .mono { font-family: var(--mono); }
+  .accent { color: var(--accent); }
+
+  /* ---------- Nav ---------- */
+  header.nav {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: saturate(160%) blur(14px);
+    background: rgba(20,20,22,0.78);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 900; letter-spacing: .5px; font-size: 18px; }
+  .brand .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+  .nav-links { display: flex; gap: 26px; align-items: center; font-size: 14.5px; }
+  .nav-links a { color: var(--muted); transition: color .2s; }
+  .nav-links a:hover { color: var(--txt); }
+  .nav-cta { background: var(--accent); color: #fff !important; padding: 8px 16px; border-radius: 9px; font-weight: 700; }
+  .nav-cta:hover { filter: brightness(1.1); }
+  @media (max-width: 720px){ .nav-links a.hide-sm { display:none; } }
+
+  /* ---------- Hero ---------- */
+  .hero { padding: 86px 0 56px; text-align: center; position: relative; }
+  .hero::before {
+    content:""; position:absolute; inset:0;
+    background: radial-gradient(620px 320px at 50% -40px, rgba(10,132,255,.20), transparent 70%);
+    pointer-events:none;
+  }
+  .badge-top {
+    display: inline-flex; align-items:center; gap:8px;
+    font-family: var(--mono); font-size: 13px; color: var(--muted);
+    border: 1px solid var(--line); background: var(--bg2);
+    padding: 6px 14px; border-radius: 999px; margin-bottom: 26px;
+  }
+  .badge-top .pulse { width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green); }
+  .hero h1 { font-size: clamp(34px, 6vw, 60px); line-height: 1.12; font-weight: 900; letter-spacing: -1px; }
+  .hero h1 .grad { background: linear-gradient(100deg, #0a84ff, #64d2ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p.sub { max-width: 660px; margin: 22px auto 0; font-size: clamp(16px,2.4vw,19px); color: var(--muted); }
+  .cta-row { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-top: 34px; }
+  .btn { display:inline-flex; align-items:center; gap:9px; font-weight:700; padding: 13px 26px; border-radius: 11px; font-size: 15.5px; transition: transform .15s, filter .15s, background .15s; border:1px solid transparent; }
+  .btn:hover { transform: translateY(-2px); }
+  .btn-primary { background: var(--accent); color:#fff; box-shadow: 0 8px 26px rgba(10,132,255,.35); }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-ghost { background: var(--bg2); border-color: var(--line); color: var(--txt); }
+  .btn-ghost:hover { background: var(--bg3); }
+  .platforms { margin-top: 22px; font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  .platforms b { color: var(--txt); font-weight:600; }
+
+  .spec-row { display:flex; gap: 12px; justify-content:center; flex-wrap:wrap; margin-top: 40px; }
+  .spec { font-family: var(--mono); font-size: 13px; color: var(--muted); border:1px solid var(--line); background: var(--bg2); border-radius: 999px; padding: 7px 15px; }
+  .spec b { color: var(--accent2); }
+
+  /* ---------- Shot frame ---------- */
+  .shot { margin-top: 56px; }
+  .frame {
+    border:1px solid var(--line); border-radius: var(--radius); overflow:hidden;
+    background: var(--bg2); box-shadow: 0 30px 80px rgba(0,0,0,.55);
+  }
+  .frame .bar { display:flex; align-items:center; gap:8px; padding:11px 15px; border-bottom:1px solid var(--line); background: var(--bg2); }
+  .frame .bar i { width:12px;height:12px;border-radius:50%; display:inline-block; }
+  .frame .bar .r{background:#ff5f57}.frame .bar .y{background:#febc2e}.frame .bar .g{background:#28c840}
+  .frame .bar span { margin-left:10px; font-family:var(--mono); font-size:12.5px; color:var(--muted); }
+  .frame img { display:block; width:100%; height:auto; }
+
+  /* ---------- Sections ---------- */
+  section { padding: 78px 0; }
+  .sec-head { text-align:center; margin-bottom: 50px; }
+  .sec-head .kicker { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; }
+  .sec-head h2 { font-size: clamp(26px, 4vw, 38px); font-weight: 900; margin-top: 10px; letter-spacing: -.5px; }
+  .sec-head p { color: var(--muted); margin-top: 12px; max-width: 600px; margin-left:auto; margin-right:auto; }
+
+  /* ---------- Features ---------- */
+  .grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  @media (max-width: 860px){ .grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 560px){ .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--bg2); border:1px solid var(--line); border-radius: var(--radius);
+    padding: 26px 24px; transition: transform .18s, border-color .18s;
+  }
+  .card:hover { transform: translateY(-4px); border-color: #3a3a40; }
+  .card .ico { font-size: 26px; margin-bottom: 14px; display:block; }
+  .card h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+  .card p { color: var(--muted); font-size: 14.5px; }
+  .card.feature-ai { border-color: rgba(10,132,255,.5); background: linear-gradient(160deg, rgba(10,132,255,.10), var(--bg2)); }
+
+  /* ---------- Screenshots gallery ---------- */
+  .gallery { display:grid; gap: 30px; }
+  .shotcard h3 { font-size:18px; font-weight:700; margin-bottom: 6px; }
+  .shotcard p { color: var(--muted); font-size: 14.5px; margin-bottom: 16px; }
+
+  /* ---------- Download ---------- */
+  .dl-grid { display:grid; grid-template-columns: repeat(3,1fr); gap: 18px; }
+  @media (max-width: 760px){ .dl-grid { grid-template-columns: 1fr; } }
+  .dl {
+    background: var(--bg2); border:1px solid var(--line); border-radius: var(--radius);
+    padding: 30px 26px; text-align:center; transition: border-color .18s, transform .18s;
+  }
+  .dl:hover { border-color: var(--accent); transform: translateY(-4px); }
+  .dl .os { font-size: 34px; }
+  .dl h3 { margin: 12px 0 4px; font-size: 19px; }
+  .dl .note { color: var(--muted); font-size: 13.5px; font-family: var(--mono); min-height: 38px; }
+  .dl a.get { display:inline-block; margin-top: 16px; background: var(--bg3); border:1px solid var(--line); padding: 9px 20px; border-radius: 9px; font-weight:700; font-size:14px; transition: background .15s; }
+  .dl a.get:hover { background: var(--accent); border-color: var(--accent); }
+
+  /* ---------- Steps ---------- */
+  .steps { display:grid; grid-template-columns: repeat(3,1fr); gap: 20px; counter-reset: step; }
+  @media (max-width: 760px){ .steps { grid-template-columns: 1fr; } }
+  .step { background: var(--bg2); border:1px solid var(--line); border-radius: var(--radius); padding: 28px 24px; position:relative; }
+  .step::before {
+    counter-increment: step; content: counter(step);
+    font-family: var(--mono); font-weight: 700; font-size: 15px;
+    width: 34px; height: 34px; border-radius: 50%;
+    display:flex; align-items:center; justify-content:center;
+    background: var(--accent); color:#fff; margin-bottom: 16px;
+  }
+  .step h3 { font-size: 17px; margin-bottom: 8px; }
+  .step p { color: var(--muted); font-size: 14.5px; }
+  .step code { font-family: var(--mono); background: var(--bg3); padding: 1px 7px; border-radius: 5px; font-size: 13px; color: var(--accent2); }
+
+  /* ---------- Security ---------- */
+  .sec-trust { background: var(--bg2); border:1px solid var(--line); border-radius: var(--radius); padding: 40px; }
+  .sec-trust ul { list-style:none; display:grid; gap: 16px; margin-top: 6px; }
+  .sec-trust li { display:flex; gap: 14px; align-items:flex-start; color: var(--muted); }
+  .sec-trust li b { color: var(--txt); }
+  .sec-trust li .chk { color: var(--green); font-size: 18px; line-height: 1.5; }
+  .note-warn { margin-top: 24px; font-size: 13.5px; color: var(--yellow); font-family: var(--mono); border-left: 3px solid var(--yellow); padding-left: 14px; }
+
+  /* ---------- Footer ---------- */
+  footer { border-top: 1px solid var(--line); padding: 44px 0; text-align:center; color: var(--muted); font-size: 14px; }
+  footer .brand { justify-content:center; margin-bottom: 12px; font-size: 16px; }
+  footer a { color: var(--accent); }
+  footer .small { font-size: 12.5px; margin-top: 10px; font-family: var(--mono); }
+</style>
+</head>
+<body>
+
+<!-- ===== NAV ===== -->
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top"><span class="dot"></span>BOOKSHELL</a>
+    <nav class="nav-links">
+      <a class="hide-sm" href="#features">功能</a>
+      <a class="hide-sm" href="#shots">畫面</a>
+      <a class="hide-sm" href="#download">下載</a>
+      <a class="hide-sm" href="#start">快速上手</a>
+      <a href="https://github.com/craig7351/bookshell" target="_blank" rel="noopener">GitHub</a>
+      <a class="nav-cta" href="#download">下載</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ===== HERO ===== -->
+<a id="top"></a>
+<section class="hero">
+  <div class="wrap">
+    <span class="badge-top"><span class="pulse"></span>v1.1.1 · 持續開發中</span>
+    <h1>為 <span class="grad">AI Agent</span> 而生的<br />SSH 終端機</h1>
+    <p class="sub">多分頁 SSH 與本機 shell、即時 Git 面板、共用工作目錄的副視窗終端，以及讓 AI 代理能完全接管鍵盤的 <b style="color:var(--txt)">Passthrough 模式</b>。原生桌面應用，輕量、快速、純 Rust 後端。</p>
+
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#download">↓ 立即下載</a>
+      <a class="btn btn-ghost" href="https://github.com/craig7351/bookshell" target="_blank" rel="noopener">⌨ GitHub 原始碼</a>
+    </div>
+    <div class="platforms">支援 <b>Windows</b> · <b>macOS</b>（Apple Silicon／Intel）· <b>Linux</b> — 以 Tauri 2 打包</div>
+
+    <div class="spec-row">
+      <span class="spec">⚡ 純 Rust <b>russh</b>，免裝 OpenSSH</span>
+      <span class="spec">🧩 <b>xterm.js</b> + WebGL 渲染</span>
+      <span class="spec">🪶 安裝檔小、啟動快</span>
+      <span class="spec">🔁 重開自動 <b>cd</b> 回工作目錄</span>
+    </div>
+
+    <div class="shot">
+      <div class="frame">
+        <div class="bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>BOOKSHELL — ssh / local terminal</span></div>
+        <img src="bookshell.png" alt="BOOKSHELL 主畫面：左側分頁、中間主終端、右側 Git view、右下副終端" />
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FEATURES ===== -->
+<section id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker">Features</span>
+      <h2>為什麼好用</h2>
+      <p>從「人和 AI 一起操作同一個 shell」的角度重新設計的終端機。</p>
+    </div>
+    <div class="grid">
+      <div class="card feature-ai">
+        <span class="ico">🤖</span>
+        <h3>AI Passthrough 模式</h3>
+        <p><code class="mono">Ctrl+Shift+P</code> 切換。開啟後幾乎所有快捷鍵直接送進遠端 shell，讓 AI 代理操控鍵盤時不會與 App 熱鍵打架。</p>
+      </div>
+      <div class="card">
+        <span class="ico">🗂️</span>
+        <h3>多分頁工作階段</h3>
+        <p>每個分頁是一條 SSH 連線或本機 PTY，分頁狀態重開自動還原；存了密碼還會自動重連。</p>
+      </div>
+      <div class="card">
+        <span class="ico">📍</span>
+        <h3>記住工作目錄</h3>
+        <p>釘選分頁的 cwd，下次開啟自動 <code class="mono">cd</code> 回該資料夾。支援拖拉排序分頁。</p>
+      </div>
+      <div class="card">
+        <span class="ico">🌿</span>
+        <h3>即時 Git 面板</h3>
+        <p>右側顯示工作樹狀態、commit 圖與 diff；點 modified 檔案直接看變更，也能檢視特定 SHA 的內容。</p>
+      </div>
+      <div class="card">
+        <span class="ico">📟</span>
+        <h3>副視窗終端</h3>
+        <p>共用同一條 SSH 連線開第二個終端。主視窗跑 AI agent 時，副視窗可同步下其他指令。</p>
+      </div>
+      <div class="card">
+        <span class="ico">📁</span>
+        <h3>檔案瀏覽器</h3>
+        <p>本機 tab 走檔案系統、SSH tab 走 SFTP。遠端檔案以串流方式下載（永不整檔進記憶體）。</p>
+      </div>
+      <div class="card">
+        <span class="ico">⌨️</span>
+        <h3>自訂指令按鈕</h3>
+        <p>把常用指令做成一鍵巨集，支援多行與送出確認，適合反覆執行的部署或測試流程。</p>
+      </div>
+      <div class="card">
+        <span class="ico">📋</span>
+        <h3>貼上即用</h3>
+        <p>拖放檔案自動帶入路徑；剪貼簿圖片 <code class="mono">Ctrl+V</code> 在 SSH tab 會自動上傳遠端再貼路徑。</p>
+      </div>
+      <div class="card">
+        <span class="ico">🛡️</span>
+        <h3>連線保活與黑盒子</h3>
+        <p>SSH keep-alive 穿越伺服器 idle timeout；內建崩潰診斷日誌與 OOM 軌跡記錄。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SCREENSHOTS ===== -->
+<section id="shots" style="background:var(--bg2)">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker">Screenshots</span>
+      <h2>實際畫面</h2>
+      <p>一個視窗同時容納主終端、Git 變更、副視窗與快速指令列。</p>
+    </div>
+    <div class="gallery">
+      <div class="shotcard">
+        <h3>📍 固定分頁工作目錄</h3>
+        <p>透過分頁右鍵設定 cwd，下次重開軟體會自動進入設定的資料夾。</p>
+        <div class="frame"><div class="bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>mark cwd</span></div><img src="image1.jpg" alt="固定分頁工作目錄" /></div>
+      </div>
+      <div class="shotcard">
+        <h3>🪵 Logs 面板</h3>
+        <p>自動記錄所有分頁的內容，包含與 AI agent 的對話，支援 ANSI 重播。</p>
+        <div class="frame"><div class="bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>logs</span></div><img src="image2.png" alt="Logs 面板" /></div>
+      </div>
+      <div class="shotcard">
+        <h3>🌿 Git view</h3>
+        <p>可直接檢視某個 commit SHA 內所修改的內容與逐檔 diff。</p>
+        <div class="frame"><div class="bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>git view</span></div><img src="image3.png" alt="Git view 看 SHA" /></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== DOWNLOAD ===== -->
+<section id="download">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker">Download</span>
+      <h2>下載安裝</h2>
+      <p>從 GitHub Releases 取得各平台安裝檔，皆由 GitHub Actions 自動編譯。</p>
+    </div>
+    <div class="dl-grid">
+      <div class="dl">
+        <div class="os">🪟</div>
+        <h3>Windows</h3>
+        <p class="note">.msi 安裝檔，或免安裝的<br />x64 portable .exe</p>
+        <a class="get" href="https://github.com/craig7351/bookshell/releases/latest" target="_blank" rel="noopener">前往下載</a>
+      </div>
+      <div class="dl">
+        <div class="os">🍎</div>
+        <h3>macOS</h3>
+        <p class="note">Apple Silicon 與 Intel<br />（.dmg）</p>
+        <a class="get" href="https://github.com/craig7351/bookshell/releases/latest" target="_blank" rel="noopener">前往下載</a>
+      </div>
+      <div class="dl">
+        <div class="os">🐧</div>
+        <h3>Linux</h3>
+        <p class="note">AppImage / .deb<br />（Ubuntu 22.04+）</p>
+        <a class="get" href="https://github.com/craig7351/bookshell/releases/latest" target="_blank" rel="noopener">前往下載</a>
+      </div>
+    </div>
+    <p style="text-align:center;color:var(--muted);font-size:13.5px;margin-top:26px" class="mono">所有版本：<a class="accent" href="https://github.com/craig7351/bookshell/releases" target="_blank" rel="noopener">github.com/craig7351/bookshell/releases</a></p>
+  </div>
+</section>
+
+<!-- ===== QUICK START ===== -->
+<section id="start" style="background:var(--bg2)">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker">Quick Start</span>
+      <h2>三步上手</h2>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <h3>下載並開啟</h3>
+        <p>抓對應平台的安裝檔執行。Windows 也能直接用 portable <code>.exe</code>，免安裝。</p>
+      </div>
+      <div class="step">
+        <h3>新增連線</h3>
+        <p>建立 SSH 連線設定檔（主機、帳號、密碼），或選本機 shell。<code>Ctrl+Shift+T</code> 開新分頁。</p>
+      </div>
+      <div class="step">
+        <h3>交給 AI 代理</h3>
+        <p>需要讓 AI 控制鍵盤時，按 <code>Ctrl+Shift+P</code> 開啟 Passthrough，快捷鍵就會直通 shell。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SECURITY ===== -->
+<section id="security">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker">Transparency</span>
+      <h2>🔒 安全與透明</h2>
+    </div>
+    <div class="sec-trust">
+      <ul>
+        <li><span class="chk">✓</span><div><b>全自動 CI 編譯。</b>推一個 <code class="mono">v*</code> 標籤即觸發 GitHub Actions，於 Windows／macOS／Linux 官方環境多平台 build，產物直接上傳 Release，過程公開可稽核。</div></li>
+        <li><span class="chk">✓</span><div><b>純 Rust 後端。</b>SSH 走 <code class="mono">russh</code>，不依賴系統 OpenSSH；前端絕不直接碰檔案系統或網路，一律透過嚴格的 Tauri IPC 邊界。</div></li>
+        <li><span class="chk">✓</span><div><b>原始碼開放。</b>所有功能、編譯腳本與 workflow 皆在 <a class="accent" href="https://github.com/craig7351/bookshell" target="_blank" rel="noopener">GitHub</a> 上可檢視。</div></li>
+      </ul>
+      <p class="note-warn">提醒：目前連線密碼以明文儲存於本機設定檔；金鑰認證與密碼加密（DPAPI／keychain）為開發中項目。請在受信任的個人裝置上使用。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer>
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span>BOOKSHELL</div>
+    <p>專為 AI agent 工作流設計的 SSH 終端機 · 基於 Tauri 2 + SolidJS</p>
+    <p><a href="https://github.com/craig7351/bookshell" target="_blank" rel="noopener">GitHub</a> · <a href="https://github.com/craig7351/bookshell/releases" target="_blank" rel="noopener">Releases</a> · <a href="https://github.com/craig7351/bookshell/blob/main/LICENSE" target="_blank" rel="noopener">License</a></p>
+    <p class="small">© 2026 craig7351 · Windows / macOS / Linux</p>
+  </div>
+</footer>
+
+</body>
+</html>
