@@ -36,3 +36,6 @@ desktop.ini
 
 # Local agent state
 .claude/
+
+# Local analysis / review notes (not for the public repo)
+bookshell-analysis.md
