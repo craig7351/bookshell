@@ -34,6 +34,10 @@ export function FileBrowser() {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [openingPath, setOpeningPath] = createSignal<string | null>(null);
+  const [hoverPath, setHoverPath] = createSignal<string | null>(null);
+  /** Non-null while an upload/download is in flight — shows a status line and
+   *  blocks a second concurrent transfer. */
+  const [transfer, setTransfer] = createSignal<string | null>(null);
   /** What the path input currently shows. Falls out of sync with listing()
    *  while the user is typing — committed via Enter or blur. */
   const [pathDraft, setPathDraft] = createSignal("");
@@ -112,6 +116,64 @@ export function FileBrowser() {
     else setPathDraft(cur); // revert empties / no-op edits
   }
 
+  /** Upload picked local paths into the current directory, then refresh. */
+  async function doUpload(pickDir: boolean) {
+    const t = activeTab();
+    const dir = listing()?.path;
+    if (!t?.sessionId || !dir || transfer()) return;
+    // Hold the guard ACROSS the picker await. The native picker is not modal on
+    // Windows, so without this the disabled/Show state wouldn't take effect and
+    // a second transfer could start while the dialog is open.
+    setTransfer(pickDir ? "Choosing folder…" : "Choosing files…");
+    try {
+      let sources: string[];
+      if (pickDir) {
+        const d = await api.fsPickDir();
+        sources = d ? [d] : [];
+      } else {
+        sources = await api.fsPickFiles();
+      }
+      if (sources.length === 0) {
+        setTransfer(null); // cancelled — release the guard
+        return;
+      }
+      setError(null);
+      setTransfer(`Uploading ${pickDir ? "folder" : `${sources.length} item(s)`}…`);
+      const n = await api.fsUpload(t.sessionId, sources, dir);
+      setTransfer(`Uploaded ${n} file${n === 1 ? "" : "s"}`);
+      // Only refresh if the user is still viewing the directory we uploaded into
+      // — don't yank them back if they navigated away during a long upload.
+      if (listing()?.path === dir) await navigate(dir);
+      setTimeout(() => setTransfer(null), 2500);
+    } catch (e) {
+      setError(String(e));
+      setTransfer(null);
+    }
+  }
+
+  /** Download a remote entry (file or dir) into a user-picked local folder. */
+  async function doDownload(e: FsEntry, ev: MouseEvent) {
+    ev.stopPropagation();
+    const t = activeTab();
+    if (!t?.sessionId || transfer()) return;
+    setTransfer("Choosing destination…"); // hold the guard across the picker
+    try {
+      const dest = await api.fsPickDir();
+      if (!dest) {
+        setTransfer(null); // cancelled — release the guard
+        return;
+      }
+      setError(null);
+      setTransfer(`Downloading ${e.name}…`);
+      const n = await api.fsDownload(t.sessionId, e.path, e.is_dir, dest);
+      setTransfer(`Downloaded ${n} file${n === 1 ? "" : "s"} → ${dest}`);
+      setTimeout(() => setTransfer(null), 3000);
+    } catch (err) {
+      setError(String(err));
+      setTransfer(null);
+    }
+  }
+
   return (
     <div style={panelStyle}>
       <div style={headerStyle}>
@@ -167,6 +229,22 @@ export function FileBrowser() {
           style={pathInputStyle}
         />
         <button
+          onClick={() => doUpload(false)}
+          disabled={!!transfer()}
+          title="Upload file(s) to this directory"
+          style={navBtn(!!transfer())}
+        >
+          ⬆📄
+        </button>
+        <button
+          onClick={() => doUpload(true)}
+          disabled={!!transfer()}
+          title="Upload a folder to this directory"
+          style={navBtn(!!transfer())}
+        >
+          ⬆📁
+        </button>
+        <button
           onClick={closeFiles}
           title="Close panel"
           style={navBtn(false)}
@@ -174,6 +252,10 @@ export function FileBrowser() {
           ×
         </button>
       </div>
+
+      <Show when={transfer()}>
+        <div style={transferStyle}>{transfer()}</div>
+      </Show>
 
       <div style={{ flex: 1, "overflow-y": "auto", "min-height": 0 }}>
         <Show when={error()}>
@@ -197,8 +279,14 @@ export function FileBrowser() {
               <div
                 onClick={() => onEntry(e)}
                 style={row}
-                onMouseOver={(ev) => (ev.currentTarget.style.background = C.bgHover)}
-                onMouseOut={(ev) => (ev.currentTarget.style.background = "transparent")}
+                onMouseEnter={(ev) => {
+                  ev.currentTarget.style.background = C.bgHover;
+                  setHoverPath(e.path);
+                }}
+                onMouseLeave={(ev) => {
+                  ev.currentTarget.style.background = "transparent";
+                  setHoverPath((p) => (p === e.path ? null : p));
+                }}
               >
                 <span style={{ width: "20px", "text-align": "center", "flex-shrink": 0 }}>{iconFor(e)}</span>
                 <span
@@ -215,7 +303,16 @@ export function FileBrowser() {
                 <Show when={openingPath() === e.path}>
                   <span style={{ "font-size": "11px", color: C.accent, "flex-shrink": 0 }}>opening…</span>
                 </Show>
-                <Show when={!e.is_dir && openingPath() !== e.path}>
+                <Show when={hoverPath() === e.path && !transfer()}>
+                  <button
+                    onClick={(ev) => doDownload(e, ev)}
+                    title={e.is_dir ? "Download folder…" : "Download file…"}
+                    style={rowDownloadBtn}
+                  >
+                    ⬇
+                  </button>
+                </Show>
+                <Show when={!e.is_dir && openingPath() !== e.path && hoverPath() !== e.path}>
                   <span style={{ "font-size": "11px", color: C.text3, "flex-shrink": 0 }}>{fmtSize(e.size)}</span>
                 </Show>
               </div>
@@ -285,4 +382,27 @@ const row = {
   cursor: "pointer",
   "font-size": "13px",
   "user-select": "none",
+} as const;
+
+const rowDownloadBtn = {
+  background: "transparent",
+  color: C.accent,
+  border: "none",
+  cursor: "pointer",
+  "font-size": "14px",
+  padding: "0 2px",
+  "line-height": "1",
+  "flex-shrink": 0,
+} as const;
+
+const transferStyle = {
+  padding: "5px 12px",
+  "font-size": "11px",
+  color: C.accent,
+  background: C.accentBg,
+  "border-bottom": `1px solid ${C.border}`,
+  "white-space": "nowrap",
+  overflow: "hidden",
+  "text-overflow": "ellipsis",
+  "flex-shrink": 0,
 } as const;

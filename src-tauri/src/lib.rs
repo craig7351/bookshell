@@ -86,6 +86,10 @@ pub fn run() {
             files::fs_list_dir,
             files::fs_download_file,
             files::fs_open_path,
+            files::fs_pick_files,
+            files::fs_pick_dir,
+            files::fs_upload,
+            files::fs_download,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -134,6 +134,18 @@ export const api = {
     invoke<string>("fs_download_file", { sessionId, path }),
   /** Open a local path with the OS default application. */
   fsOpenPath: (path: string) => invoke<void>("fs_open_path", { path }),
+  /** Native picker: choose one or more local files. Empty array if cancelled. */
+  fsPickFiles: () => invoke<string[]>("fs_pick_files"),
+  /** Native picker: choose a single local directory. Null if cancelled. */
+  fsPickDir: () => invoke<string | null>("fs_pick_dir"),
+  /** Upload local files/dirs into a remote (or local) directory. Recursive for
+   *  directories; streams over SFTP for SSH tabs. Returns files transferred. */
+  fsUpload: (sessionId: string, localPaths: string[], remoteDir: string) =>
+    invoke<number>("fs_upload", { sessionId, localPaths, remoteDir }),
+  /** Download a remote entry (file or dir) into a local destination directory.
+   *  Recursive for directories. Returns files transferred. */
+  fsDownload: (sessionId: string, path: string, isDir: boolean, destDir: string) =>
+    invoke<number>("fs_download", { sessionId, path, isDir, destDir }),
 
   /** Snapshot of BOOKSHELL process resource usage (RSS in MB, CPU %). */
   systemStats: () => invoke<SystemStats>("system_stats"),
