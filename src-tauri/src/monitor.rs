@@ -223,7 +223,13 @@ pub fn start_watchdog() {
         // RSS breadcrumb state: log every 60 s, or immediately on a big jump.
         let mut sys = System::new();
         let pid = sysinfo::get_current_pid().unwrap_or_else(|_| Pid::from(0));
-        let mut last_mem_log = Instant::now() - Duration::from_secs(3600);
+        // Backdate so the first iteration logs immediately. Must use checked_sub:
+        // on Windows `Instant` counts from boot, so a plain `-` overflows (panics)
+        // when system uptime is < 3600 s (i.e. shortly after a reboot).
+        let now = Instant::now();
+        let mut last_mem_log = now
+            .checked_sub(Duration::from_secs(3600))
+            .unwrap_or(now);
         let mut last_rss_mb: u64 = 0;
         loop {
             std::thread::sleep(Duration::from_secs(5));
