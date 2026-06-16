@@ -4,6 +4,7 @@ import { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { api } from "../ipc/api";
 import { general } from "../stores/general";
 import {
@@ -197,6 +198,11 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string }) {
     });
     fit = new FitAddon();
     term.loadAddon(fit);
+    // Match modern CLI wcwidth (Unicode 11) so CJK/emoji redraws don't garble.
+    // See Terminal.tsx for the full rationale.
+    const unicode11 = new Unicode11Addon();
+    term.loadAddon(unicode11);
+    term.unicode.activeVersion = "11";
     term.loadAddon(
       new WebLinksAddon((_ev, uri) => {
         api.urlOpen(uri).catch((e) => console.warn("url_open failed", e));

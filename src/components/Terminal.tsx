@@ -6,6 +6,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon, type ISearchOptions } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { api } from "../ipc/api";
@@ -169,6 +170,13 @@ export function TerminalView(props: Props) {
     search = new SearchAddon();
     term.loadAddon(fit);
     term.loadAddon(search);
+    // Align xterm's character-width tables with the wcwidth modern CLIs (e.g.
+    // Claude Code) use. Without this, xterm defaults to Unicode 6 widths and
+    // disagrees about CJK/emoji cell counts, so TUI redraws leave stray glyphs
+    // behind (garbled overlapping text).
+    const unicode11 = new Unicode11Addon();
+    term.loadAddon(unicode11);
+    term.unicode.activeVersion = "11";
     highlightAddons = DEFAULT_HIGHLIGHT_COLORS.map(() => {
       const a = new SearchAddon();
       term!.loadAddon(a);
