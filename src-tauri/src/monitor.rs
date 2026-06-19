@@ -33,7 +33,13 @@ pub async fn system_stats() -> Result<SystemStats, String> {
     });
     let mut g = monitor.lock().map_err(|e| format!("lock: {}", e))?;
     let pid = g.pid;
-    g.sys.refresh_all();
+    // Refresh ONLY our own process. refresh_all() enumerates every process on the
+    // system and, on Windows, OpenProcess-es each one. Called every 2 s from the
+    // frontend — on a terminal that constantly spawns short-lived processes — that
+    // leaked Process handles steadily (nonpaged-pool growth → eventual freeze).
+    // We only need our own RSS + CPU, so scope the refresh to our pid.
+    g.sys
+        .refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
     let proc = g.sys.process(pid).ok_or("process not found")?;
     Ok(SystemStats {
         rss_mb: proc.memory() / (1024 * 1024),
