@@ -449,12 +449,95 @@ function HotkeysPane() {
   );
 }
 
+const RELEASES_API = "https://api.github.com/repos/craig7351/bookshell/releases/latest";
+const RELEASES_PAGE = "https://github.com/craig7351/bookshell/releases/latest";
+
+/** Compare two dotted version strings. Returns >0 if a>b, <0 if a<b, 0 equal.
+ *  Non-numeric/short parts are treated as 0 so "1.1" vs "1.1.5" works. */
+function compareVersions(a: string, b: string): number {
+  const pa = a.replace(/^v/, "").split(".");
+  const pb = b.replace(/^v/, "").split(".");
+  const n = Math.max(pa.length, pb.length);
+  for (let i = 0; i < n; i++) {
+    const na = parseInt(pa[i] ?? "0", 10) || 0;
+    const nb = parseInt(pb[i] ?? "0", 10) || 0;
+    if (na !== nb) return na - nb;
+  }
+  return 0;
+}
+
+type UpdateState =
+  | { kind: "idle" }
+  | { kind: "checking" }
+  | { kind: "latest" }
+  | { kind: "update"; tag: string }
+  | { kind: "error"; message: string };
+
 function AboutPane() {
   const [version] = createResource(getVersion);
+  const [update, setUpdate] = createSignal<UpdateState>({ kind: "idle" });
+
+  async function checkForUpdates() {
+    if (update().kind === "checking") return;
+    const current = version();
+    if (!current) return;
+    setUpdate({ kind: "checking" });
+    try {
+      const res = await fetch(RELEASES_API, {
+        headers: { Accept: "application/vnd.github+json" },
+      });
+      if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+      const data = await res.json();
+      const tag: string = (data.tag_name ?? "").toString();
+      if (!tag) throw new Error("no release tag found");
+      if (compareVersions(tag, current) > 0) {
+        setUpdate({ kind: "update", tag });
+      } else {
+        setUpdate({ kind: "latest" });
+      }
+    } catch (e) {
+      setUpdate({ kind: "error", message: String(e) });
+    }
+  }
+
   return (
     <div>
       <div style={{ "font-size": "20px", "font-weight": 600, "margin-bottom": "4px" }}>BOOKSHELL</div>
-      <div style={{ opacity: 0.7, "margin-bottom": "16px" }}>v{version() ?? "…"} — Phase 1</div>
+      <div style={{ display: "flex", "align-items": "center", gap: "10px", "margin-bottom": "16px" }}>
+        <span style={{ opacity: 0.7 }}>v{version() ?? "…"}</span>
+        <button
+          onClick={checkForUpdates}
+          disabled={update().kind === "checking" || !version()}
+          style={{ ...btnSecondary, padding: "3px 12px", "font-size": "12px" }}
+        >
+          {update().kind === "checking" ? "Checking…" : "Check for updates"}
+        </button>
+        <Show when={update().kind === "latest"}>
+          <span style={{ "font-size": "12px", color: C.green }}>✓ You're on the latest version</span>
+        </Show>
+        <Show when={update().kind === "update" ? update() : null} keyed>
+          {(u) => (
+            <span style={{ display: "flex", "align-items": "center", gap: "8px", "font-size": "12px" }}>
+              <span style={{ color: C.accent, "font-weight": 600 }}>
+                New version {(u as { kind: "update"; tag: string }).tag} available
+              </span>
+              <button
+                onClick={() => api.urlOpen(RELEASES_PAGE).catch(() => {})}
+                style={{ ...btnPrimary, padding: "3px 12px", "font-size": "12px" }}
+              >
+                Download
+              </button>
+            </span>
+          )}
+        </Show>
+        <Show when={update().kind === "error" ? update() : null} keyed>
+          {(u) => (
+            <span style={{ "font-size": "12px", color: C.red }}>
+              Update check failed: {(u as { kind: "error"; message: string }).message}
+            </span>
+          )}
+        </Show>
+      </div>
       <div style={{ "font-size": "13px", "line-height": 1.6, opacity: 0.8 }}>
         SSH terminal optimized for Claude Code and other AI agents.
       </div>
