@@ -16,10 +16,23 @@
         -webkit-font-smoothing: antialiased;
       }
       * { box-sizing: border-box; }
-      ::-webkit-scrollbar { width: 6px; height: 6px; }
-      ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 3px; }
-      ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.28); }
+      /* Chunky, easy-to-grab scrollbars. Wider track + a visible thumb with a
+         faint groove background so the draggable region is obvious even when
+         idle; brightens on hover / while dragging. */
+      ::-webkit-scrollbar { width: 14px; height: 14px; }
+      ::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(255,255,255,0.30);
+        border-radius: 7px;
+        /* transparent border → padding effect so the thumb reads as a rounded
+           pill inset from the track edges instead of filling the full width. */
+        border: 3px solid transparent;
+        background-clip: padding-box;
+        min-height: 32px;
+      }
+      ::-webkit-scrollbar-thumb:hover   { background: rgba(255,255,255,0.48); background-clip: padding-box; }
+      ::-webkit-scrollbar-thumb:active  { background: rgba(255,255,255,0.62); background-clip: padding-box; }
+      ::-webkit-scrollbar-corner { background: transparent; }
       button { font-family: inherit; }
       input, textarea, select { font-family: inherit; }
 
