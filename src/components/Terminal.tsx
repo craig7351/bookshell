@@ -18,7 +18,7 @@ import {
 } from "../stores/tabs";
 import { closeSearch, isSearchOpenFor } from "../stores/search";
 import { general } from "../stores/general";
-import { connections, isLinux } from "../stores/connections";
+import { connections } from "../stores/connections";
 import { connectTab, reconnectTabFromProfile, restoreCwd } from "../stores/tabs";
 
 interface Props {
@@ -368,18 +368,26 @@ export function TerminalView(props: Props) {
     window.addEventListener("keydown", onCopyKey);
     onCleanup(() => window.removeEventListener("keydown", onCopyKey));
 
-    // Middle-click paste. On Linux, WebKitGTK handles X11 primary-selection
-    // paste natively via onData — we only suppress the auto-scroll affordance
-    // to avoid double-paste. On Windows/macOS there is no native primary
-    // selection, so we read the clipboard manually with arboard.
+    // Middle-click paste — uniform across platforms: read the system clipboard
+    // (the select-to-copy mouseup handler keeps it populated) and paste it.
+    // On Linux we make xterm's helper textarea readOnly for the duration so
+    // WebKitGTK's native middle-click PRIMARY-selection paste can't ALSO fire
+    // (double-paste). term.paste() writes straight to onData, bypassing the
+    // textarea, so our manual paste still lands. Harmless no-op on Win/macOS.
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 1) return;
       e.preventDefault();
-      if (!isLinux()) {
-        api.clipboardReadText().then((text) => {
+      const ta = term?.textarea;
+      if (ta) ta.readOnly = true;
+      api
+        .clipboardReadText()
+        .then((text) => {
           if (text) term?.paste(text);
-        }).catch((err) => console.warn("middle-click paste failed", err));
-      }
+        })
+        .catch((err) => console.warn("middle-click paste failed", err))
+        .finally(() => {
+          if (ta) ta.readOnly = false;
+        });
     };
     host.addEventListener("mousedown", onMouseDown);
     onCleanup(() => host.removeEventListener("mousedown", onMouseDown));

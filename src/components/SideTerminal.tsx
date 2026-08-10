@@ -18,7 +18,6 @@ import {
   sideTermWidth,
 } from "../stores/sideTerm";
 import { layoutMode, layoutVertical } from "../stores/layout";
-import { isLinux } from "../stores/connections";
 import { activeTabId } from "../stores/tabs";
 import { CloseX } from "./CloseX";
 
@@ -264,26 +263,39 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string }) {
     });
     unlisteners.push(ulData, ulClose);
 
-    // Auto-copy selection to clipboard on mouseup.
-    const onMouseUp = () => {
+    // Auto-copy selection to clipboard on mouseup. Mirrors the main terminal:
+    // native arboard (navigator.clipboard can silently fail on WebKitGTK), and
+    // ignore non-left buttons so a middle-click paste doesn't re-copy the
+    // selection over what was just pasted.
+    const onMouseUp = (e: MouseEvent) => {
+      if (e.button !== 0) return;
       if (!term?.hasSelection()) return;
       const sel = term.getSelection();
-      if (sel) navigator.clipboard.writeText(sel).catch(() => {});
+      if (!sel) return;
+      api.clipboardWriteText(sel).catch((err) =>
+        console.warn("clipboard write failed", err),
+      );
     };
     host.addEventListener("mouseup", onMouseUp);
 
-    // Middle-click paste. On Linux, WebKitGTK handles X11 primary-selection
-    // paste natively via onData — we only suppress the auto-scroll affordance
-    // to avoid double-paste. On Windows/macOS there is no native primary
-    // selection, so we read the clipboard manually with arboard.
+    // Middle-click paste — uniform across platforms: read the system clipboard
+    // and paste it. On Linux make the helper textarea readOnly for the duration
+    // so WebKitGTK's native PRIMARY-selection middle-click paste can't ALSO fire
+    // (double-paste); term.paste() bypasses the textarea so ours still lands.
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 1) return;
       e.preventDefault();
-      if (!isLinux()) {
-        api.clipboardReadText().then((text) => {
+      const ta = term?.textarea;
+      if (ta) ta.readOnly = true;
+      api
+        .clipboardReadText()
+        .then((text) => {
           if (text) term?.paste(text);
-        }).catch((err) => console.warn("middle-click paste failed", err));
-      }
+        })
+        .catch((err) => console.warn("middle-click paste failed", err))
+        .finally(() => {
+          if (ta) ta.readOnly = false;
+        });
     };
     host.addEventListener("mousedown", onMouseDown);
 
