@@ -21,6 +21,21 @@ pub struct TabState {
     /// remembers the user's preferred width across sessions.
     #[serde(default)]
     pub git_width: Option<u32>,
+    /// Id of the group this tab belongs to, if any. Groups are defined in
+    /// `TabsFile::groups`; a tab with no `group_id` is ungrouped.
+    #[serde(default)]
+    pub group_id: Option<String>,
+}
+
+/// A collapsible category the user drags tabs into.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TabGroup {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub collapsed: bool,
+    #[serde(default)]
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -29,6 +44,8 @@ pub struct TabsFile {
     pub tabs: Vec<TabState>,
     #[serde(default)]
     pub active_tab_id: Option<String>,
+    #[serde(default)]
+    pub groups: Vec<TabGroup>,
 }
 
 pub fn tabs_path() -> PathBuf {

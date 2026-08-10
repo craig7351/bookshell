@@ -267,11 +267,20 @@ export interface TabState {
   passthrough: boolean;
   cwd?: string | null;
   git_width?: number | null;
+  group_id?: string | null;
+}
+
+export interface TabGroupState {
+  id: string;
+  name: string;
+  collapsed?: boolean;
+  color?: string | null;
 }
 
 export interface TabsFile {
   tabs: TabState[];
   active_tab_id?: string | null;
+  groups?: TabGroupState[];
 }
 
 export interface SystemStats {

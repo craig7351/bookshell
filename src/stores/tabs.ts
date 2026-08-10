@@ -23,23 +23,40 @@ export interface Tab {
   cwd?: string | null;
   /** Persisted per-tab width (px) of the right-side Git panel. */
   gitWidth?: number | null;
+  /** Id of the group this tab belongs to (see `groups`), or null/undefined
+   *  when the tab is ungrouped. */
+  groupId?: string | null;
   /** monotonic counter to nudge consumers when tab needs to refit */
   fitTick: number;
+}
+
+/** A collapsible category the user drags tabs into. Membership is by
+ *  `Tab.groupId`; this record holds the group's display state. */
+export interface TabGroup {
+  id: string;
+  name: string;
+  collapsed: boolean;
+  color?: string | null;
 }
 
 interface TabsState {
   tabs: Tab[];
   activeTabId: string | null;
+  groups: TabGroup[];
 }
 
 const [state, setState] = createStore<TabsState>({
   tabs: [],
   activeTabId: null,
+  groups: [],
 });
 
 export const tabs = () => state.tabs;
 export const activeTabId = () => state.activeTabId;
 export const activeTab = () => state.tabs.find((t) => t.id === state.activeTabId) ?? null;
+export const tabGroups = () => state.groups;
+export const groupById = (id: string): TabGroup | undefined =>
+  state.groups.find((g) => g.id === id);
 
 const [markCwdTabId, setMarkCwdTabId] = createSignal<string | null>(null);
 export { markCwdTabId };
@@ -67,7 +84,17 @@ export function newTabId(): string {
 export function setActiveTab(id: string) {
   setState("activeTabId", id);
   const t = state.tabs.find((x) => x.id === id);
-  if (t) bumpFit(t.id);
+  if (t) {
+    bumpFit(t.id);
+    // If the newly active tab lives in a collapsed group, expand it so the
+    // user can see where they are (e.g. after Ctrl+Tab cycling into it).
+    if (t.groupId) {
+      const gi = state.groups.findIndex((g) => g.id === t.groupId);
+      if (gi >= 0 && state.groups[gi].collapsed) {
+        setState("groups", gi, "collapsed", false);
+      }
+    }
+  }
 }
 
 export function bumpFit(id: string) {
@@ -277,6 +304,139 @@ export function reorderTabs(sourceId: string, targetId: string | null) {
   });
 }
 
+// ─── Tab groups ─────────────────────────────────────────────────────
+
+let nextGroupSeq = 1;
+function newGroupId(): string {
+  return `grp-${Date.now()}-${nextGroupSeq++}`;
+}
+
+/** Move `sourceId` in the flat array to sit immediately after `anchorId`
+ *  (or to the end when anchorId is null). Order among group members and the
+ *  group's vertical position both derive from array order, so grouping ops
+ *  reposition the tab to keep members visually clustered. */
+function moveTabAfter(sourceId: string, anchorId: string | null) {
+  setState("tabs", (prev) => {
+    const arr = [...prev];
+    const from = arr.findIndex((t) => t.id === sourceId);
+    if (from < 0) return prev;
+    const [moved] = arr.splice(from, 1);
+    if (anchorId === null) {
+      arr.push(moved);
+      return arr;
+    }
+    const at = arr.findIndex((t) => t.id === anchorId);
+    if (at < 0) arr.push(moved);
+    else arr.splice(at + 1, 0, moved);
+    return arr;
+  });
+}
+
+/** Last tab id belonging to `groupId` in array order, or null if none. */
+function lastMemberOf(groupId: string): string | null {
+  let last: string | null = null;
+  for (const t of state.tabs) if (t.groupId === groupId) last = t.id;
+  return last;
+}
+
+/** Assign a tab to an existing group, clustering it after the group's last
+ *  current member. */
+export function assignTabToGroup(tabId: string, groupId: string) {
+  if (!groupById(groupId)) return;
+  const anchor = lastMemberOf(groupId);
+  updateTab(tabId, { groupId });
+  if (anchor && anchor !== tabId) moveTabAfter(tabId, anchor);
+}
+
+/** Create a new group containing `tabIds` (in the given order) and return its
+ *  id. The group is positioned where the first member currently sits. */
+export function createGroupWith(tabIds: string[], name?: string): string {
+  const id = newGroupId();
+  const n = state.groups.length + 1;
+  setState("groups", (g) => [...g, { id, name: name ?? `Group ${n}`, collapsed: false, color: null }]);
+  let anchor: string | null = null;
+  for (const tid of tabIds) {
+    updateTab(tid, { groupId: id });
+    if (anchor) moveTabAfter(tid, anchor);
+    anchor = tid;
+  }
+  return id;
+}
+
+/** Remove a tab from its group (keeps the tab, keeps the group). Deletes the
+ *  group if it becomes empty. */
+export function removeTabFromGroup(tabId: string) {
+  const t = state.tabs.find((x) => x.id === tabId);
+  const gid = t?.groupId ?? null;
+  updateTab(tabId, { groupId: null });
+  if (gid) pruneGroupIfEmpty(gid);
+}
+
+/** Dissolve a group: all members become ungrouped, the group record is
+ *  removed. Tabs keep their positions. */
+export function ungroup(groupId: string) {
+  setState("tabs", (t) => t.groupId === groupId, "groupId", null);
+  setState("groups", (g) => g.filter((x) => x.id !== groupId));
+}
+
+export function toggleGroupCollapsed(groupId: string) {
+  const i = state.groups.findIndex((g) => g.id === groupId);
+  if (i >= 0) setState("groups", i, "collapsed", (v) => !v);
+}
+
+export function renameGroup(groupId: string, name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  const i = state.groups.findIndex((g) => g.id === groupId);
+  if (i >= 0) setState("groups", i, "name", trimmed);
+}
+
+export function setGroupColor(groupId: string, color: string | null) {
+  const i = state.groups.findIndex((g) => g.id === groupId);
+  if (i >= 0) setState("groups", i, "color", color);
+}
+
+/** Drop-handler entry point used by the tab bar drag. `kind`:
+ *   - "before": reorder source before target; source joins target's group
+ *   - "group":  source joins target's group (creating one if target is
+ *               ungrouped and is itself a tab)
+ *   - "group-header": source joins the group whose header was hit
+ *   - "end":    move to end, ungrouped */
+export function dropTab(
+  sourceId: string,
+  drop: { kind: "before" | "group" | "end" | "group-header"; targetId: string | null },
+) {
+  if (sourceId === drop.targetId) return;
+  const prevGroup = state.tabs.find((t) => t.id === sourceId)?.groupId ?? null;
+
+  if (drop.kind === "end") {
+    updateTab(sourceId, { groupId: null });
+    reorderTabs(sourceId, null);
+  } else if (drop.kind === "group-header" && drop.targetId) {
+    assignTabToGroup(sourceId, drop.targetId);
+  } else if (drop.kind === "group" && drop.targetId) {
+    const target = state.tabs.find((t) => t.id === drop.targetId);
+    if (!target) return;
+    if (target.groupId) {
+      assignTabToGroup(sourceId, target.groupId);
+    } else {
+      createGroupWith([target.id, sourceId]);
+    }
+  } else if (drop.kind === "before" && drop.targetId) {
+    const target = state.tabs.find((t) => t.id === drop.targetId);
+    updateTab(sourceId, { groupId: target?.groupId ?? null });
+    reorderTabs(sourceId, drop.targetId);
+  }
+
+  if (prevGroup) pruneGroupIfEmpty(prevGroup);
+}
+
+/** Remove a group record once it has no members left. */
+function pruneGroupIfEmpty(groupId: string) {
+  const stillUsed = state.tabs.some((t) => t.groupId === groupId);
+  if (!stillUsed) setState("groups", (g) => g.filter((x) => x.id !== groupId));
+}
+
 export async function closeTab(id: string) {
   const t = state.tabs.find((x) => x.id === id);
   if (t?.sessionId) {
@@ -291,7 +451,9 @@ export async function closeTab(id: string) {
   // Capture the closed tab's index BEFORE removal so we can pick the
   // right-hand neighbor (falling back to the left if it was the last one).
   const closedIdx = state.tabs.findIndex((x) => x.id === id);
+  const closedGroup = state.tabs[closedIdx]?.groupId ?? null;
   setState("tabs", (prev) => prev.filter((x) => x.id !== id));
+  if (closedGroup) pruneGroupIfEmpty(closedGroup);
   if (state.activeTabId === id) {
     const remaining = state.tabs;
     if (remaining.length === 0) {
@@ -405,7 +567,11 @@ export async function reconnectTabFromProfile(tabId: string): Promise<boolean> {
 let saveTimer: number | undefined;
 let restoring = true;
 
-function snapshot(): { tabs: TabState[]; active_tab_id: string | null } {
+function snapshot(): {
+  tabs: TabState[];
+  active_tab_id: string | null;
+  groups: { id: string; name: string; collapsed: boolean; color: string | null }[];
+} {
   return {
     tabs: state.tabs.map((t) => ({
       id: t.id,
@@ -416,8 +582,15 @@ function snapshot(): { tabs: TabState[]; active_tab_id: string | null } {
       passthrough: t.passthrough,
       cwd: t.cwd ?? null,
       git_width: t.gitWidth ?? null,
+      group_id: t.groupId ?? null,
     })),
     active_tab_id: state.activeTabId,
+    groups: state.groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      collapsed: g.collapsed,
+      color: g.color ?? null,
+    })),
   };
 }
 
@@ -445,6 +618,13 @@ createRoot(() => {
       void t.passthrough;
       void t.cwd;
       void t.gitWidth;
+      void t.groupId;
+    });
+    state.groups.forEach((g) => {
+      void g.id;
+      void g.name;
+      void g.collapsed;
+      void g.color;
     });
     void state.activeTabId;
     scheduleSave();
@@ -479,7 +659,21 @@ export async function restoreTabs(): Promise<string[] | null> {
       passthrough: t.passthrough,
       cwd: t.cwd ?? null,
       gitWidth: t.git_width ?? null,
+      groupId: t.group_id ?? null,
       fitTick: 0,
+    })),
+  );
+  // Restore groups, dropping any that ended up with no members (defensive
+  // against a hand-edited or partially-written tabs file).
+  const restoredGroups = (file.groups ?? []).filter((g) =>
+    file.tabs.some((t) => t.group_id === g.id),
+  );
+  setState("groups", () =>
+    restoredGroups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      collapsed: g.collapsed ?? false,
+      color: g.color ?? null,
     })),
   );
   setState(
