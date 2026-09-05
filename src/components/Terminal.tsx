@@ -652,7 +652,12 @@ export function TerminalView(props: Props) {
         // of the prompt than on the edges the overview ruler and the scrollbar
         // already occupy. Background must stay the exact xtermTheme.background
         // (--bg-2) or the padding reads as a frame around the canvas.
-        style={{ position: "absolute", inset: "0", padding: "10px 8px 8px 12px", background: C.bg }}
+        // content-box is load-bearing: FitAddon sizes cols/rows from the
+        // parent's computed width/height, which under the global border-box
+        // reset INCLUDES this padding. It then over-allocates ~2 columns, the
+        // canvas overflows the .xterm box and paints over the viewport's
+        // scrollbar (and the last row can slip under the card edge).
+        style={{ position: "absolute", inset: "0", padding: "10px 8px 8px 12px", "box-sizing": "content-box", background: C.bg }}
         onclick={() => {
           if (props.active && !isSearchOpenFor(props.tab.id)) {
             term?.focus();

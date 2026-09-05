@@ -369,7 +369,9 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string; onFoc
   return (
     <div
       ref={host}
-      style={{ position: "absolute", inset: "0", padding: "6px 8px 4px 10px", background: C.bg }}
+      // content-box: FitAddon reads the parent's computed size, which under
+      // the global border-box reset would include this padding and over-fit.
+      style={{ position: "absolute", inset: "0", padding: "6px 8px 4px 10px", "box-sizing": "content-box", background: C.bg }}
     />
   );
 }
