@@ -6,7 +6,6 @@ const defaults: GeneralSettings = {
   font_size: 14,
   side_font_size: 14,
   git_poll_secs: 5,
-  terminal_palette: "macos-dark",
 };
 
 const [general, setGeneral] = createSignal<GeneralSettings>(defaults);

@@ -11,7 +11,6 @@ import {
   S,
   T,
   TYPO,
-  type TerminalPalette,
 } from "../theme";
 import { Icon, type IconName } from "../icons";
 import { DialogFrame } from "./ui/DialogFrame";
@@ -147,11 +146,6 @@ export function SettingsDialog(props: Props) {
 // General pane
 // ──────────────────────────────────────────────────────────────────────
 
-const PALETTES: { id: TerminalPalette; label: string }[] = [
-  { id: "macos-dark", label: "macOS Dark" },
-  { id: "legacy", label: "Legacy" },
-];
-
 function GeneralPane() {
   return (
     <div style={paneStackStyle}>
@@ -200,20 +194,6 @@ function GeneralPane() {
             }}
             style={field("80px")}
           />
-        </SettingsRow>
-
-        <SettingsRow
-          label="Terminal palette"
-          hint="ANSI colours. Legacy restores the pre-1.3 table."
-        >
-          <select
-            class="bs-input"
-            value={general().terminal_palette ?? "macos-dark"}
-            onChange={(e) => updateGeneral({ terminal_palette: e.currentTarget.value })}
-            style={field("160px")}
-          >
-            <For each={PALETTES}>{(p) => <option value={p.id}>{p.label}</option>}</For>
-          </select>
         </SettingsRow>
       </SettingsGroup>
 

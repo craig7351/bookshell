@@ -1,7 +1,7 @@
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { createStore } from "solid-js/store";
-import { button, C, FONT, H, M, R, RAW, S, SH, T, xtermThemeFor } from "../theme";
+import { button, C, FONT, H, M, R, RAW, S, SH, T, xtermTheme } from "../theme";
 import { Icon, type IconName } from "../icons";
 import { CloseGlyph } from "./CloseX";
 import { Terminal } from "@xterm/xterm";
@@ -239,7 +239,7 @@ export function TerminalView(props: Props) {
       overviewRulerWidth: 10,
       scrollback: general().scrollback,
       allowProposedApi: true,
-      theme: xtermThemeFor(general().terminal_palette),
+      theme: xtermTheme,
     });
     fit = new FitAddon();
     search = new SearchAddon();
@@ -576,7 +576,6 @@ export function TerminalView(props: Props) {
     if (!term) return;
     term.options.scrollback = general().scrollback;
     term.options.fontSize = general().font_size;
-    term.options.theme = xtermThemeFor(general().terminal_palette);
     queueMicrotask(() => fit?.fit());
   });
 

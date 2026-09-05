@@ -19,7 +19,6 @@
  */
 
 import { ansiMacosDark } from "./themes/macos-dark";
-import { ansiMacosDarkLegacy } from "./themes/macos-dark-legacy";
 
 /** Pure colour values. No var() may ever appear in here.
  *  This is the flat part of RAW — every key here maps 1:1 onto a CSS custom
@@ -123,13 +122,12 @@ const HLJS = {
   attr:     "#a167e6",
 } as const;
 
-/** The raw palette. Flat colour tokens plus the four JS-only colour tables:
- *  `ansi` / `ansiLegacy` (xterm), `highlight` (Terminal swatches) and `hljs`
- *  (Markdown code blocks). */
+/** The raw palette. Flat colour tokens plus the three JS-only colour tables:
+ *  `ansi` (xterm), `highlight` (Terminal swatches) and `hljs` (Markdown code
+ *  blocks). */
 export const RAW = {
   ...TOKENS,
   ansi: ansiMacosDark,
-  ansiLegacy: ansiMacosDarkLegacy,
   highlight: HIGHLIGHT,
   hljs: HLJS,
 } as const;
@@ -471,24 +469,14 @@ export function input(size: CtrlSize = "roomy") {
   };
 }
 
-/** Terminal palette ids accepted by GeneralSettings.terminal_palette. */
-export type TerminalPalette = "macos-dark" | "legacy";
-
 /** xterm.js theme. Reads RAW because xterm parses these as real colours —
  *  a "var(--…)" string here renders as transparent, so never pass C.
  *  `background` MUST equal the host element background (RAW.bg2, opaque):
  *  a mismatch shows up as a seam around the terminal card. */
-export function xtermThemeFor(palette?: string | null) {
-  const ansi = palette === "legacy" ? RAW.ansiLegacy : RAW.ansi;
-  return {
-    background:   RAW.bg2,
-    foreground:   RAW.text1,
-    cursor:       RAW.text1,
-    cursorAccent: RAW.bg2,
-    ...ansi,
-  };
-}
-
-/** Default terminal theme. Kept as a named export so anything that does not
- *  care about the user's palette choice keeps compiling. */
-export const xtermTheme = xtermThemeFor("macos-dark");
+export const xtermTheme = {
+  background:   RAW.bg2,
+  foreground:   RAW.text1,
+  cursor:       RAW.text1,
+  cursorAccent: RAW.bg2,
+  ...RAW.ansi,
+} as const;

@@ -14,10 +14,6 @@ pub struct GeneralSettings {
     /// Git view auto-refresh polling interval in seconds (SSH sessions).
     #[serde(default = "default_git_poll_secs")]
     pub git_poll_secs: u32,
-    /// xterm ANSI palette id: "macos-dark" (default) or "legacy". None means
-    /// "not chosen yet" and resolves to the default on the frontend.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub terminal_palette: Option<String>,
 }
 
 impl Default for GeneralSettings {
@@ -27,7 +23,6 @@ impl Default for GeneralSettings {
             font_size: default_font_size(),
             side_font_size: default_side_font_size(),
             git_poll_secs: default_git_poll_secs(),
-            terminal_palette: None,
         }
     }
 }

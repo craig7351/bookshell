@@ -1,5 +1,5 @@
 import { createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner, Show } from "solid-js";
-import { C, FONT, R, xtermThemeFor } from "../theme";
+import { C, FONT, R, xtermTheme } from "../theme";
 import { PanelHeader, panelCard } from "./ui/PanelHeader";
 import { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -222,7 +222,7 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string; onFoc
       fontWeightBold: 600,
       scrollback: general().scrollback,
       allowProposedApi: true,
-      theme: xtermThemeFor(general().terminal_palette),
+      theme: xtermTheme,
     });
     fit = new FitAddon();
     term.loadAddon(fit);
@@ -347,7 +347,6 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string; onFoc
         if (!term) return;
         term.options.scrollback = general().scrollback;
         term.options.fontSize = general().side_font_size;
-        term.options.theme = xtermThemeFor(general().terminal_palette);
         queueMicrotask(() => fit?.fit());
       });
 
