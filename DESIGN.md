@@ -126,6 +126,32 @@ lift to `--text-3` while the pointer is on the footer (`.bs-metric`) — they
 are ambient, not a readout. Zero warnings is a 6px green dot and a `--text-4`
 count; only a non-zero count earns `--red` on `--red-fill`.
 
+## Terminal overlays
+
+Everything that floats over the canvas takes `--sh-1`, never `--sh-2`/`--sh-3`:
+a 24px blur radius over live terminal output is exactly what xterm rule 1
+forbids. Only two states still earn a full-canvas overlay — a dead session and
+a drag in flight. Every other message (an upload, a pasted path, a copy, a
+passthrough flip) is the **HUD pill**: bottom-centred, `--bg-3`, `--r-full`,
+30px, `bs-pop-in`, held 1.6s and then faded out over 200ms, `pointer-events:
+none` throughout.
+
+Search is one capsule — `--r-full`, height-locked, one hairline — carrying a
+bare field (`.bs-input.bs-input-bare`, no box and no ring of its own), one
+segmented track for the three options and a tabular counter. The capsule owns
+the state the field cannot show: no match turns its border `--red-line` and the
+counter `--red`. Keyword highlight expands as a drawer underneath it, never as
+a second floating window.
+
+Two canvas-wide modes mark the canvas itself. Passthrough draws a 1.5px
+`--purple-ring` inset ring in its own layer (the xterm host paints over
+anything the root could draw) plus a `--t-10` mono label in the top-right
+corner, which yields to the search capsule. The agent activity rail is a 2px
+`--accent` line along the top edge that breathes while the PTY writes: the
+output callback stamps a **plain variable**, a 250ms interval flips the signal,
+and only when the state actually changes — 4Hz, opacity only, cleared in
+`onCleanup` (xterm rule 6).
+
 ## Tooltips
 
 `class="bs-tip" data-tip="…"`, not `title=`. Dark bubble, 400ms delay, visible

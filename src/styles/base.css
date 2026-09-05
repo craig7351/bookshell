@@ -209,6 +209,20 @@ button:disabled,
   color: var(--text-4);
 }
 
+/* A field that lives INSIDE a surface which already draws its own outline —
+   the terminal search capsule. It contributes text and nothing else: no box,
+   no focus ring, so the capsule stays one shape and is free to turn its own
+   border red when a query finds nothing. The :focus-visible arm has to be
+   spelled out because the global `input:focus-visible` rule is more specific
+   than a single class. */
+.bs-input.bs-input-bare,
+.bs-input.bs-input-bare:focus,
+.bs-input.bs-input-bare:focus-visible {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
 /* Keyboard chip. Element-level so any <kbd> — empty states, dialogs, a Notice,
    rendered Markdown — reads as the same key cap without a component import.
    See components/ui/Kbd.tsx for the semantic wrapper. */

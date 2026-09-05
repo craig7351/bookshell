@@ -73,6 +73,9 @@ const TOKENS = {
   purple: "#bf5af2",
   purpleFill: "rgba(191,90,242,0.15)",
   purpleLine: "rgba(191,90,242,0.35)",
+  // The passthrough ring drawn inside the terminal card. Stronger than
+  // --purple-line because it competes with live terminal output.
+  purpleRing: "rgba(191,90,242,0.45)",
   cyan: "#5ac8fa",
   cyanFill: "rgba(90,200,250,0.15)",
   cyanLine: "rgba(90,200,250,0.35)",
@@ -80,6 +83,10 @@ const TOKENS = {
   // Scrims
   scrim: "rgba(0,0,0,0.55)",
   scrimTerm: "rgba(14,14,16,0.78)",
+  // The dead-session veil is a radial wash, not a flat sheet: lighter under
+  // the card, darker in the corners. These are its two stops.
+  scrimTermIn: "rgba(14,14,16,0.85)",
+  scrimTermOut: "rgba(14,14,16,0.95)",
   scrimDrop: "rgba(10,132,255,0.08)",
 
   // Window traffic lights
@@ -145,11 +152,14 @@ const TOKEN_NAMES: Record<keyof typeof TOKENS, string> = {
   purple: "--purple",
   purpleFill: "--purple-fill",
   purpleLine: "--purple-line",
+  purpleRing: "--purple-ring",
   cyan: "--cyan",
   cyanFill: "--cyan-fill",
   cyanLine: "--cyan-line",
   scrim: "--scrim",
   scrimTerm: "--scrim-term",
+  scrimTermIn: "--scrim-term-in",
+  scrimTermOut: "--scrim-term-out",
   scrimDrop: "--scrim-drop",
   tlRed: "--tl-red",
   tlYellow: "--tl-yellow",
@@ -206,6 +216,7 @@ export const C = {
   greenBg:     "var(--green-fill)",
   red:         "var(--red)",
   redBg:       "var(--red-fill)",
+  redBdr:      "var(--red-line)",
   yellow:      "var(--yellow)",
   yellowBg:    "var(--yellow-fill)",
   orange:      "var(--orange)",
@@ -213,8 +224,11 @@ export const C = {
   purple:      "var(--purple)",
   purpleBg:    "var(--purple-fill)",
   purpleBdr:   "var(--purple-line)",
+  purpleRing:  "var(--purple-ring)",
   scrim:       "var(--scrim)",
   scrimTerm:   "var(--scrim-term)",
+  scrimTermIn: "var(--scrim-term-in)",
+  scrimTermOut:"var(--scrim-term-out)",
   scrimDrop:   "var(--scrim-drop)",
   tRed:        "var(--tl-red)",
   tYellow:     "var(--tl-yellow)",

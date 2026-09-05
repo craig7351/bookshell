@@ -56,6 +56,7 @@
   --purple: #bf5af2;
   --purple-fill: rgba(191, 90, 242, 0.15);
   --purple-line: rgba(191, 90, 242, 0.35);
+  --purple-ring: rgba(191, 90, 242, 0.45);  /* passthrough canvas ring */
   --cyan: #5ac8fa;
   --cyan-fill: rgba(90, 200, 250, 0.15);
   --cyan-line: rgba(90, 200, 250, 0.35);
@@ -63,6 +64,8 @@
   /* ---- Scrims -------------------------------------------------------- */
   --scrim:      rgba(0, 0, 0, 0.55);          /* dialog backdrop */
   --scrim-term: rgba(14, 14, 16, 0.78);       /* terminal reconnect veil */
+  --scrim-term-in: rgba(14, 14, 16, 0.85);    /* …its radial centre */
+  --scrim-term-out: rgba(14, 14, 16, 0.95);   /* …and its corners */
   --scrim-drop: rgba(10, 132, 255, 0.08);     /* drag & drop tint */
 
   /* ---- Traffic lights (window controls) ------------------------------ */

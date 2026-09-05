@@ -46,6 +46,10 @@ const PATHS = {
   "sliders-horizontal":
     '<path d="M21 4H14"/><path d="M10 4H3"/><path d="M21 12H12"/><path d="M8 12H3"/><path d="M21 20H16"/><path d="M12 20H3"/><path d="M14 2v4"/><path d="M8 10v4"/><path d="M16 18v4"/>',
   pencil: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>',
+  /* Not in the section 3.7 list, but section 5.7 asks for it by name: the
+     keyword-highlight drawer used to be a 🎨 emoji. */
+  highlighter:
+    '<path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4Z"/>',
 
   // --- actions -------------------------------------------------------------
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
