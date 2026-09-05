@@ -59,6 +59,41 @@ export function TerminalView(props: Props) {
   /** Set by onCleanup so deferred work (the WebGL retry timer) can bail out
    *  instead of touching a disposed terminal. */
   let termDisposed = false;
+  // WebGL renderer, ACTIVE TAB ONLY. Chromium caps a page at 16 live WebGL
+  // contexts and evicts the oldest past that, so one context per open tab
+  // (20+ tabs is normal here) guarantees a churn of context-loss events at
+  // start-up and on every new tab — which is what the "context lost again"
+  // diagnostics were. Hidden tabs are not painted, so they run on the DOM
+  // renderer and get a fresh context the moment they come to the front.
+  let webgl: WebglAddon | undefined;
+  let webglRetried = false;
+  const unmountWebgl = () => {
+    webgl?.dispose();
+    webgl = undefined;
+  };
+  const mountWebgl = () => {
+    if (!term || termDisposed || webgl) return;
+    try {
+      const addon = new WebglAddon();
+      addon.onContextLoss(() => {
+        // GPU reset / driver hiccup on the visible terminal. Drop to the DOM
+        // renderer, give the driver a second, and try once more; a second
+        // loss means the GPU path is unusable for this session.
+        addon.dispose();
+        if (webgl === addon) webgl = undefined;
+        if (webglRetried) {
+          console.warn("WebGL context lost twice — terminal stays on the DOM renderer");
+          return;
+        }
+        webglRetried = true;
+        setTimeout(() => { if (props.active) mountWebgl(); }, 1000);
+      });
+      term.loadAddon(addon);
+      webgl = addon;
+    } catch (e) {
+      console.warn("WebGL addon failed", e);
+    }
+  };
   let fit: FitAddon | undefined;
   let search: SearchAddon | undefined;
   let highlightAddons: SearchAddon[] = [];
@@ -264,33 +299,7 @@ export function TerminalView(props: Props) {
         api.urlOpen(uri).catch((e) => console.warn("url_open failed", e));
       }),
     );
-    // WebGL renderer with one-shot context-loss recovery. A lost GL context
-    // (GPU reset, driver update, compositor hiccup) leaves the addon dead and
-    // silently drops xterm to the DOM renderer for the rest of the session.
-    // Dispose it, wait a second for the driver to settle, then mount a fresh
-    // addon exactly once; a second failure means the GPU path is unusable, so
-    // record it (console.error feeds the diagnostics buffer) and stay on DOM.
-    let webglRetried = false;
-    const mountWebgl = () => {
-      if (!term || termDisposed) return;
-      try {
-        const addon = new WebglAddon();
-        addon.onContextLoss(() => {
-          addon.dispose();
-          if (webglRetried) {
-            console.error("WebGL context lost again — terminal stays on the DOM renderer");
-            return;
-          }
-          webglRetried = true;
-          setTimeout(mountWebgl, 1000);
-        });
-        term.loadAddon(addon);
-      } catch (e) {
-        if (webglRetried) console.error("WebGL renderer unavailable after context loss", e);
-        else console.warn("WebGL addon failed", e);
-      }
-    };
-    mountWebgl();
+    // The WebGL addon is mounted by the active-tab effect below, after open.
     term.open(host);
     fit.fit();
 
@@ -545,6 +554,12 @@ export function TerminalView(props: Props) {
     setTermReady(true);
   });
 
+  // GPU renderer follows the active tab (see the note at `webgl` above).
+  createEffect(() => {
+    if (props.active) mountWebgl();
+    else unmountWebgl();
+  });
+
   // Refit when activated
   createEffect(() => {
     void props.tab.fitTick;
@@ -602,6 +617,7 @@ export function TerminalView(props: Props) {
 
   onCleanup(() => {
     termDisposed = true;
+    unmountWebgl();
     term?.dispose();
   });
 
