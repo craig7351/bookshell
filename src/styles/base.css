@@ -566,7 +566,14 @@ body.bs-dragging * {
   *::after {
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 1ms !important;
+    /* `transition: none`, NOT a 1ms duration. A 1ms transition still runs,
+       and with transition-property defaulting to `all` it applies to EVERY
+       inline style change on EVERY element — including xterm parking its
+       helper textarea under the pointer on right-click. Chromium hit-tests
+       for the native context menu right after that handler, found the
+       textarea still at its old spot, and offered the canvas menu with no
+       Paste. Windows users with "animation effects" off hit this by default. */
+    transition: none !important;
     scroll-behavior: auto !important;
   }
 
