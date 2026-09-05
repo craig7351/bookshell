@@ -499,7 +499,7 @@ function LogRow(p: { tabId: string; line: GitLogLine }) {
       </Show>
       <span style={hashStyle}>{c.hash_short}</span>
       <Show when={c.refs}>
-        <span style={refChipStyle}>{c.refs}</span>
+        <RefChips refs={c.refs} />
       </Show>
       <span style={subjectStyle}>{c.subject}</span>
       <span style={timeStyle}>{shortTime(c.time_relative)}</span>
@@ -575,9 +575,13 @@ const graphOnlyStyle = {
   "white-space": "pre",
 } as const;
 
+/* LOG rows keep git's own colour vocabulary so a glance at the list reads like
+ * `git log --oneline --decorate`: orange graph + hash (the pre-redesign look),
+ * and one chip per decoration coloured by kind — HEAD cyan, local branch
+ * green, remote purple, tag yellow. */
 const graphStyle = {
   "font-family": FONT.mono,
-  color: C.text4,
+  color: C.orange,
   "white-space": "pre",
   "flex-shrink": 0,
 } as const;
@@ -585,10 +589,50 @@ const graphStyle = {
 const hashStyle = {
   "font-family": FONT.mono,
   ...T[11],
-  color: C.text3,
+  color: C.orange,
   "font-variant-numeric": "tabular-nums",
   "flex-shrink": 0,
 } as const;
+
+type RefKind = "head" | "branch" | "remote" | "tag";
+
+function refKind(ref: string): RefKind {
+  if (ref.startsWith("HEAD")) return "head";
+  if (ref.startsWith("tag:")) return "tag";
+  if (ref.includes("/")) return "remote";
+  return "branch";
+}
+
+const REF_TINT: Record<RefKind, { fg: string; bg: string }> = {
+  head:   { fg: C.cyan,   bg: C.cyanBg },
+  branch: { fg: C.green,  bg: C.greenBg },
+  remote: { fg: C.purple, bg: C.purpleBg },
+  tag:    { fg: C.yellow, bg: C.yellowBg },
+};
+
+/** `%d` decorations — "(HEAD -> main, origin/main, tag: v1.2.0)" — split into
+ *  one chip each so every ref gets its own colour instead of one green blob. */
+function RefChips(p: { refs: string }) {
+  const parts = () =>
+    p.refs
+      .replace(/^\s*\(/, "")
+      .replace(/\)\s*$/, "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  return (
+    <For each={parts()}>
+      {(ref) => {
+        const tint = REF_TINT[refKind(ref)];
+        return (
+          <span style={{ ...refChipStyle, color: tint.fg, background: tint.bg }} title={ref}>
+            {ref}
+          </span>
+        );
+      }}
+    </For>
+  );
+}
 
 const refChipStyle = {
   display: "inline-flex",
@@ -596,8 +640,6 @@ const refChipStyle = {
   height: "14px",
   padding: `0 ${S[1]}`,
   "border-radius": R.xs,
-  background: C.greenBg,
-  color: C.green,
   ...T[10],
   "max-width": "110px",
   overflow: "hidden",
