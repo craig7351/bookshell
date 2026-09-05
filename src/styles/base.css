@@ -119,6 +119,10 @@ button:disabled,
 .bs-pill:not(:disabled):hover,
 .bs-menu-item:not([aria-disabled="true"]):hover {
   background: var(--btn-bg-hover, var(--fill-hover));
+  /* Foreground lifts on hover too (TabBar row: text-2 -> text-1). Defaults
+     to whatever --btn-fg already is, so nothing changes for callers that
+     never set it. */
+  color: var(--btn-fg-hover, var(--btn-fg, inherit));
 }
 
 .bs-btn:not(:disabled):active,
@@ -166,6 +170,29 @@ button:disabled,
 .bs-pill[aria-current] {
   background: var(--fill-selected);
   color: var(--text-1);
+}
+
+/* The generic :hover rule above is MORE specific than the selection rule, so
+   hovering a selected row would repaint it with the weaker --fill-hover.
+   Restate it at equal specificity, later in the file. */
+.bs-row[aria-selected="true"]:hover,
+.bs-row[aria-current]:hover,
+.bs-menu-item[aria-selected="true"]:hover,
+.bs-menu-item[aria-current]:hover,
+.bs-pill[aria-selected="true"]:hover,
+.bs-pill[aria-current]:hover {
+  background: var(--fill-selected);
+}
+
+/* A row that carries a user colour (a coloured tab) tints its own selected
+   fill through --btn-bg-selected. Guarded by @supports because an unsupported
+   color-mix() is invalid at computed-value time — the background would fall
+   all the way back to transparent rather than to --fill-selected. */
+@supports (background: color-mix(in srgb, red 18%, transparent)) {
+  .bs-row[aria-selected="true"],
+  .bs-row[aria-selected="true"]:hover {
+    background: var(--btn-bg-selected, var(--fill-selected));
+  }
 }
 
 .bs-input {
@@ -298,6 +325,53 @@ body.bs-dragging * {
 
 .bs-tip[data-tip]:hover::after {
   animation: bs-fade-in var(--dur-2) var(--ease) 400ms both;
+}
+
+/* ------------------------------------------------------------- side list */
+
+/* A scrolling list that dissolves into the chrome at both ends instead of
+   being guillotined. The 12px mask matches the scroller's own 12px vertical
+   padding, so the first and last rows are only touched once the list actually
+   scrolls under it. scrollbar-gutter keeps the 14px track reserved, so rows
+   never reflow when the list grows past the viewport. */
+.bs-scroll-fade {
+  scrollbar-gutter: stable;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+}
+
+/* TabBar row trailing slot: the meta glyphs give way to the close ✕ when the
+   row is hovered or is the current tab. Both fade (never visibility), and the
+   hidden one stops taking clicks so an invisible ✕ can't close a tab. */
+.bs-tabrow .bs-tab-close {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bs-tabrow .bs-tab-meta {
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+.bs-tabrow:hover .bs-tab-close,
+.bs-tabrow[aria-selected="true"] .bs-tab-close {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.bs-tabrow:hover .bs-tab-meta,
+.bs-tabrow[aria-selected="true"] .bs-tab-meta {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* A row that reveals its shortcut chip on hover (the sidebar's "+ New"). */
+.bs-kbd-reveal kbd {
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+.bs-kbd-reveal:hover kbd {
+  opacity: 1;
 }
 
 /* ------------------------------------------------------------- scrollbars */

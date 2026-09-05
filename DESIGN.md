@@ -49,6 +49,11 @@ hover and `[aria-pressed]` rules silently. Delete `onMouseOver`/`onMouseOut`
 handlers that only rewrite style; keep the handler if it also does real work
 (e.g. `setHoverPath`).
 
+The full slot set is `--btn-bg` / `--btn-bg-hover` / `--btn-bg-active` /
+`--btn-bg-selected` (the `[aria-selected]` fill, for a row that carries a user
+colour) and `--btn-fg` / `--btn-fg-hover`. Every one of them has a token
+default, so a component sets only the ones it actually changes.
+
 ## Tooltips
 
 `class="bs-tip" data-tip="…"`, not `title=`. Dark bubble, 400ms delay, visible

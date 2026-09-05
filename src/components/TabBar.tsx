@@ -3,7 +3,11 @@ import { createMemo, createSignal, For, Show } from "solid-js";
 const [tabBarWidth, setTabBarWidth] = createSignal(190);
 const MIN_W = 140;
 const MAX_W = 400;
-import { C, R } from "../theme";
+import { C, FONT, H, M, R, S, T } from "../theme";
+import { Icon } from "../icons";
+import { CloseGlyph } from "./CloseX";
+import { Kbd } from "./ui/Kbd";
+import { StatusDot } from "./ui/StatusDot";
 import {
   activeTabId,
   closeTab,
@@ -17,34 +21,18 @@ import {
   setGroupColor,
   setTabColor,
   setTabIcon,
-  tabGroups,
   tabs,
   toggleGroupCollapsed,
   toggleTabPassthrough,
   ungroup,
   type Tab,
   type TabGroup,
-  type TabStatus,
 } from "../stores/tabs";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 
 interface Props {
   onNew: () => void;
 }
-
-const statusColor: Record<TabStatus, string> = {
-  connecting: C.yellow,
-  connected: C.green,
-  disconnected: C.text3,
-  error: C.red,
-};
-
-const statusGlyph: Record<TabStatus, string> = {
-  connecting: "◐",
-  connected: "●",
-  disconnected: "○",
-  error: "!",
-};
 
 const COLORS = [
   { name: "Default", value: null },
@@ -93,7 +81,6 @@ export function TabBar(props: Props) {
   const [renamingId, setRenamingId] = createSignal<string | null>(null);
   const [renamingGroupId, setRenamingGroupId] = createSignal<string | null>(null);
   const [draggingId, setDraggingId] = createSignal<string | null>(null);
-  const [hoveredId, setHoveredId] = createSignal<string | null>(null);
   const [resizing, setResizing] = createSignal(false);
   /** Live drop intent while dragging; null when not over any valid target. */
   const [dropIntent, setDropIntent] = createSignal<DropIntent | null>(null);
@@ -286,9 +273,19 @@ export function TabBar(props: Props) {
     setRenamingGroupId(null);
   }
 
+  /** Focus and select a freshly mounted rename field. queueMicrotask because a
+   *  Solid ref fires before the node is in the document. */
+  function focusRename(el: HTMLInputElement) {
+    queueMicrotask(() => {
+      el.focus();
+      el.select();
+    });
+  }
+
   /** Render a single tab row. `inGroup` indents members under their header. */
   function renderTab(t: Tab, inGroup: boolean) {
     const intent = () => dropIntent();
+    const isActive = () => t.id === activeTabId();
     const isBefore = () => {
       const i = intent();
       return i?.kind === "before" && i.id === t.id;
@@ -299,10 +296,10 @@ export function TabBar(props: Props) {
     };
     return (
       <div
+        class="bs-row bs-tabrow"
         data-tab-slot={t.id}
+        aria-selected={isActive()}
         onMouseDown={(e) => startDrag(e, t.id)}
-        onMouseEnter={() => setHoveredId(t.id)}
-        onMouseLeave={() => setHoveredId((id) => (id === t.id ? null : id))}
         onClick={() => setActiveTab(t.id)}
         onDblClick={() => setRenamingId(t.id)}
         onContextMenu={(e) => openMenu(e, t)}
@@ -320,62 +317,48 @@ export function TabBar(props: Props) {
         }}
         tabindex={t.id === activeTabId() ? 0 : -1}
         style={{
-          ...tabStyle,
+          ...rowStyle,
+          height: t.cwd ? "40px" : H.row,
           "margin-left": inGroup ? "10px" : "0",
-          background: isGroupMerge()
-            ? C.accentBg
-            : t.id === activeTabId()
-              ? C.accentBg
-              : hoveredId() === t.id
-                ? C.bgHover
-                : "transparent",
-          "border-left-color": t.color ?? "transparent",
-          "box-shadow": isGroupMerge()
-            ? `inset 0 0 0 1.5px ${C.accent}`
-            : t.id === activeTabId()
-              ? `inset 2px 0 0 ${C.accent}`
-              : "none",
-          color: C.text,
-          "font-weight": t.id === activeTabId() ? 600 : 500,
+          // Background and foreground are class-driven; only slots go inline.
+          "--btn-bg": isGroupMerge() ? C.accentBg : "transparent",
+          "--btn-fg": isActive() ? C.text : C.text2,
+          "--btn-fg-hover": C.text,
+          // A coloured tab tints its own selected fill. base.css falls back to
+          // --fill-selected where color-mix() is unsupported.
+          "--btn-bg-selected": t.color
+            ? `color-mix(in srgb, ${t.color} 18%, transparent)`
+            : C.bgSelected,
+          "font-weight": isActive() ? 500 : 400,
+          "box-shadow": isGroupMerge() ? `inset 0 0 0 1.5px ${C.accent}` : "none",
           opacity: draggingId() === t.id ? 0.35 : 1,
-          "border-top": isBefore() ? `2px solid ${C.accent}` : "2px solid transparent",
         }}
         title={t.errorMessage ?? t.name}
       >
+        <Show when={isBefore()}>
+          <div style={dropBarStyle} />
+        </Show>
+        <Show when={t.color}>
+          <div style={{ ...railStyle, background: t.color! }} />
+        </Show>
         <div style={tabTopRowStyle}>
-          <Show when={t.status !== "connected"}>
-            <span
-              class={t.status === "connecting" ? "bs-pulse" : undefined}
-              style={{
-                color: statusColor[t.status],
-                "font-size": "10px",
-                width: "12px",
-                "flex-shrink": 0,
-                "font-weight": t.status === "error" ? 700 : 400,
-              }}
-              title={t.status}
-            >
-              {statusGlyph[t.status]}
-            </span>
-          </Show>
-          <Show when={t.passthrough}>
-            <span title="AI passthrough on" style={{ "font-size": "11px" }}>🤖</span>
-          </Show>
-          <Show when={t.cwd}>
-            <span title={`cwd: ${t.cwd}`} style={{ "font-size": "10px" }}>📍</span>
-          </Show>
-          <Show when={t.icon}>{(ic) => <span>{ic()}</span>}</Show>
-          <Show
-            when={renamingId() === t.id}
-            fallback={
-              <span style={{ flex: 1, overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
-                {t.name}
-              </span>
-            }
-          >
+          <div style={leadSlotStyle} title={t.status}>
+            <Show when={t.icon} fallback={<StatusDot state={t.status} />}>
+              {(ic) => (
+                <>
+                  <span style={leadIconStyle}>{ic()}</span>
+                  <div style={leadDotStyle}>
+                    <StatusDot state={t.status} size={6} />
+                  </div>
+                </>
+              )}
+            </Show>
+          </div>
+          <Show when={renamingId() === t.id} fallback={<span style={nameStyle}>{t.name}</span>}>
             <input
               value={t.name}
               autofocus
+              ref={focusRename}
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
               onBlur={(e) => commitRename(t.id, e.currentTarget)}
@@ -387,20 +370,33 @@ export function TabBar(props: Props) {
               style={renameInputStyle}
             />
           </Show>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              closeTab(t.id);
-            }}
-            style={{
-              ...closeBtnStyle,
-              visibility:
-                hoveredId() === t.id || t.id === activeTabId() ? "visible" : "hidden",
-            }}
-            title="Close (Ctrl+Shift+W)"
-          >
-            ×
-          </button>
+          <div style={trailStyle}>
+            <Show when={t.passthrough || t.cwd}>
+              <div class="bs-tab-meta" style={metaStyle}>
+                <Show when={t.passthrough}>
+                  <span title="AI passthrough on" style={{ display: "flex", color: C.purple }}>
+                    <Icon name="bot" size={12} />
+                  </span>
+                </Show>
+                <Show when={t.cwd}>
+                  <span title={`cwd: ${t.cwd}`} style={{ display: "flex" }}>
+                    <Icon name="map-pin" size={12} />
+                  </span>
+                </Show>
+              </div>
+            </Show>
+            <button
+              class="bs-iconbtn bs-tab-close"
+              onClick={(e) => {
+                e.stopPropagation();
+                closeTab(t.id);
+              }}
+              style={closeBtnStyle}
+              title="Close (Ctrl+Shift+W)"
+            >
+              <CloseGlyph size="sm" />
+            </button>
+          </div>
         </div>
         <Show when={t.cwd}>
           <div style={cwdRowStyle}>{shortCwd(t.cwd!)}</div>
@@ -419,6 +415,7 @@ export function TabBar(props: Props) {
     return (
       <div style={{ display: "flex", "flex-direction": "column", gap: "1px" }}>
         <div
+          class="bs-row"
           data-group-slot={group.id}
           onClick={() => toggleGroupCollapsed(group.id)}
           onDblClick={(e) => {
@@ -428,28 +425,33 @@ export function TabBar(props: Props) {
           onContextMenu={(e) => openGroupMenu(e, group)}
           style={{
             ...groupHeaderStyle,
-            background: isHeaderTarget() ? C.accentBg : C.bg3,
+            "--btn-bg": isHeaderTarget() ? C.accentBg : "transparent",
+            "--btn-fg": C.text3,
+            "--btn-fg-hover": C.text2,
             "box-shadow": isHeaderTarget() ? `inset 0 0 0 1.5px ${C.accent}` : "none",
-            "border-left": `3px solid ${group.color ?? C.borderSub}`,
           }}
           title={group.collapsed ? "Click to expand" : "Click to collapse"}
         >
-          <span style={{ "font-size": "10px", width: "10px", "flex-shrink": 0, color: C.text2 }}>
-            {group.collapsed ? "▸" : "▾"}
-          </span>
+          <Show when={group.color}>
+            <div style={{ ...railStyle, background: group.color! }} />
+          </Show>
+          <div style={leadSlotStyle}>
+            <Icon
+              name="chevron-right"
+              size={12}
+              style={{
+                transform: group.collapsed ? "none" : "rotate(90deg)",
+                transition: `transform ${M.d2} ${M.ease}`,
+              }}
+            />
+          </div>
           <Show
             when={renamingGroupId() === group.id}
             fallback={
               <span
                 style={{
-                  flex: 1,
-                  overflow: "hidden",
-                  "text-overflow": "ellipsis",
-                  "white-space": "nowrap",
-                  "font-weight": 600,
-                  "font-size": "11px",
-                  color: activeInside() && group.collapsed ? C.accent : C.text,
-                  "letter-spacing": "0.02em",
+                  ...groupNameStyle,
+                  ...(activeInside() && group.collapsed ? { color: C.accent } : {}),
                 }}
               >
                 {group.name}
@@ -459,6 +461,7 @@ export function TabBar(props: Props) {
             <input
               value={group.name}
               autofocus
+              ref={focusRename}
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
               onBlur={(e) => commitGroupRename(group.id, e.currentTarget)}
@@ -470,9 +473,7 @@ export function TabBar(props: Props) {
               style={renameInputStyle}
             />
           </Show>
-          <span style={{ "font-size": "10px", color: C.text3, "flex-shrink": 0 }}>
-            {members.length}
-          </span>
+          <span style={countPillStyle}>{members.length}</span>
         </div>
         <Show when={!group.collapsed}>
           <For each={members}>{(m) => renderTab(m, true)}</For>
@@ -483,27 +484,49 @@ export function TabBar(props: Props) {
 
   return (
     <div style={{ display: "flex", width: `${tabBarWidth()}px`, "flex-shrink": 0 }}>
-    <div style={containerStyle}>
-      <For each={rows()}>
-        {(row) =>
-          row.kind === "group"
-            ? renderGroup(row.group, row.members)
-            : renderTab(row.tab, false)
-        }
-      </For>
-      <div
-        data-tab-slot="__end__"
-        style={{
-          "min-height": "12px",
-          "border-top": dropIntent()?.kind === "end" && draggingId()
-            ? `2px solid ${C.accent}`
-            : "2px solid transparent",
-        }}
-      />
-      <button onClick={props.onNew} style={newBtnStyle} title="New tab (Ctrl+Shift+T)">
-        + New
-      </button>
+      <div style={columnStyle}>
+        <div class="bs-scroll-fade" style={scrollStyle}>
+          <For each={rows()}>
+            {(row) =>
+              row.kind === "group"
+                ? renderGroup(row.group, row.members)
+                : renderTab(row.tab, false)
+            }
+          </For>
+          <div data-tab-slot="__end__" style={endSlotStyle}>
+            <Show when={dropIntent()?.kind === "end" && draggingId()}>
+              <div style={{ ...dropBarStyle, top: "4px" }} />
+            </Show>
+          </div>
+        </div>
 
+        {/* Pinned below the scroller: the one creating action never scrolls out
+         *  of reach, and its shortcut chip fades in on hover. */}
+        <button class="bs-row bs-kbd-reveal" onClick={props.onNew} style={newBtnStyle}>
+          <div style={leadSlotStyle}>
+            <Icon name="plus" size={14} />
+          </div>
+          <span style={{ flex: 1, "text-align": "left" }}>New tab</span>
+          <Kbd>Ctrl+Shift+T</Kbd>
+        </button>
+      </div>
+
+      {/* right-edge drag handle */}
+      <div
+        onMouseDown={startResize}
+        style={{
+          width: "4px",
+          cursor: "col-resize",
+          background: resizing() ? C.accent : "transparent",
+          "border-right": `1px solid ${C.border}`,
+          "flex-shrink": 0,
+          transition: `background ${M.d2} ${M.ease}`,
+        }}
+        title="Drag to resize"
+      />
+
+      {/* The menus live outside the masked scroller: a mask clips its subtree
+       *  and opens a stacking context, which would swallow a fixed popover. */}
       <Show when={menu()}>
         {(m) => (
           <ContextMenu
@@ -525,109 +548,222 @@ export function TabBar(props: Props) {
         )}
       </Show>
     </div>
-    {/* right-edge drag handle */}
-    <div
-      onMouseDown={startResize}
-      style={{
-        width: "4px",
-        cursor: "col-resize",
-        background: resizing() ? C.accent : "transparent",
-        "border-right": `1px solid ${C.border}`,
-        "flex-shrink": 0,
-        transition: "background 0.15s",
-      }}
-      title="Drag to resize"
-    />
-    </div>
   );
 }
 
-const containerStyle = {
+const columnStyle = {
   flex: 1,
   background: C.bg2,
   display: "flex",
   "flex-direction": "column",
-  padding: "4px 4px",
-  gap: "1px",
-  "overflow-y": "auto",
   "min-width": 0,
+  "min-height": 0,
 } as const;
 
-const tabStyle = {
+/** The scrolling list. Its 12px vertical padding matches the .bs-scroll-fade
+ *  mask, so the first and last rows only dissolve once the list really
+ *  scrolls under it. */
+const scrollStyle = {
+  flex: 1,
   display: "flex",
   "flex-direction": "column",
-  // Tighter vertical padding — name row is now ~26px and the optional cwd row
-  // is ~14px. Previously each tab was ~42px which capped the visible list to
-  // ~10 entries on a typical 800px-tall window.
-  padding: "3px 8px 3px 6px",
+  gap: "1px",
+  padding: `${S[3]} ${S[1]}`,
+  "overflow-y": "auto",
+  "min-height": 0,
+} as const;
+
+/** One anatomy for every entry: [16px leading slot][name][trailing meta], so
+ *  a name starts at the same x whatever the row happens to carry. */
+const rowStyle = {
+  position: "relative",
+  display: "flex",
+  "flex-direction": "column",
+  "justify-content": "center",
+  padding: "0 8px 0 6px",
   "border-radius": R.sm,
   cursor: "grab",
-  "font-size": "13px",
-  "border-left": "3px solid transparent",
+  ...T[13],
   "user-select": "none",
-  transition: "background 0.08s, color 0.08s",
 } as const;
 
 const groupHeaderStyle = {
+  position: "relative",
   display: "flex",
   "align-items": "center",
-  gap: "5px",
-  padding: "3px 8px",
+  gap: S[1.5],
+  height: H.row,
+  padding: "0 8px 0 6px",
   "border-radius": R.sm,
   cursor: "pointer",
   "user-select": "none",
-  transition: "background 0.08s",
 } as const;
 
 const tabTopRowStyle = {
   display: "flex",
   "align-items": "center",
-  gap: "5px",
+  gap: S[1.5],
+  height: H.row,
   width: "100%",
 } as const;
 
+/** The fixed leading slot — a status dot, a custom icon, or a chevron. */
+const leadSlotStyle = {
+  position: "relative",
+  width: "16px",
+  height: "16px",
+  "flex-shrink": 0,
+  display: "flex",
+  "align-items": "center",
+  "justify-content": "center",
+} as const;
+
+const leadIconStyle = {
+  ...T[12],
+  "line-height": "1",
+} as const;
+
+/** When a custom icon owns the slot, status shrinks into its corner. */
+const leadDotStyle = {
+  position: "absolute",
+  right: "-2px",
+  bottom: "-1px",
+} as const;
+
+const nameStyle = {
+  flex: 1,
+  "min-width": 0,
+  overflow: "hidden",
+  "text-overflow": "ellipsis",
+  "white-space": "nowrap",
+} as const;
+
+const trailStyle = {
+  position: "relative",
+  display: "flex",
+  "align-items": "center",
+  gap: S[1],
+  "flex-shrink": 0,
+} as const;
+
+const metaStyle = {
+  display: "flex",
+  "align-items": "center",
+  gap: S[1],
+  color: C.text3,
+} as const;
+
+/** 3px colour rail, parked inside the row's left padding so it can never push
+ *  the leading slot around the way the old border-left did. */
+const railStyle = {
+  position: "absolute",
+  left: "2px",
+  top: "50%",
+  width: "3px",
+  height: "14px",
+  "margin-top": "-7px",
+  "border-radius": R.full,
+  "pointer-events": "none",
+} as const;
+
+/** Standalone insert marker; rows no longer carry a permanent border-top. */
+const dropBarStyle = {
+  position: "absolute",
+  left: "0",
+  right: "0",
+  top: "-1px",
+  height: "2px",
+  "border-radius": R.full,
+  background: C.accent,
+  "pointer-events": "none",
+} as const;
+
 const cwdRowStyle = {
-  "font-size": "11px",
-  color: C.text2,
+  ...T[10],
+  "font-family": FONT.mono,
+  color: C.text3,
   "white-space": "nowrap",
   overflow: "hidden",
   "text-overflow": "ellipsis",
-  "padding-left": "17px",
-  "margin-top": "1px",
-  "line-height": "1.2",
+  "padding-left": "22px",
+  "line-height": "12px",
+} as const;
+
+const groupNameStyle = {
+  flex: 1,
+  "min-width": 0,
+  overflow: "hidden",
+  "text-overflow": "ellipsis",
+  "white-space": "nowrap",
+  ...T[11],
+  "font-weight": 600,
+  "text-transform": "uppercase",
+  "letter-spacing": "0.06em",
+} as const;
+
+const countPillStyle = {
+  ...T[10],
+  "font-weight": 500,
+  "font-variant-numeric": "tabular-nums",
+  color: C.text3,
+  background: C.bg3,
+  height: "14px",
+  padding: `0 ${S[1.5]}`,
+  "border-radius": R.full,
+  display: "inline-flex",
+  "align-items": "center",
+  "flex-shrink": 0,
 } as const;
 
 const renameInputStyle = {
   flex: 1,
-  background: C.bg,
-  color: C.text,
-  border: `1px solid ${C.accent}`,
-  "border-radius": "4px",
-  padding: "1px 5px",
-  "font-size": "12px",
-  outline: "none",
   "min-width": 0,
+  height: "20px",
+  background: C.bg3,
+  color: C.text,
+  border: "none",
+  outline: "none",
+  "border-radius": R.xs,
+  padding: `0 ${S[1.5]}`,
+  ...T[13],
+  "box-shadow": `0 0 0 2px ${C.accentBdr}`,
 } as const;
 
 const closeBtnStyle = {
-  background: "transparent",
-  color: C.text3,
+  width: "18px",
+  height: "18px",
+  padding: "0",
   border: "none",
   cursor: "pointer",
-  "font-size": "13px",
-  padding: "0 3px",
-  "line-height": "1",
+  "border-radius": R.xs,
+  "--btn-bg": "transparent",
+  "--btn-bg-hover": C.bgHover,
+  "--btn-fg": C.text4,
+  "--btn-fg-hover": C.text,
+} as const;
+
+/** Drop target for "move out of every group, to the bottom". */
+const endSlotStyle = {
+  position: "relative",
+  "min-height": S[3],
   "flex-shrink": 0,
 } as const;
 
 const newBtnStyle = {
-  background: "transparent",
-  color: C.text3,
-  border: `1px dashed ${C.borderSub}`,
-  "border-radius": "6px",
-  padding: "5px 8px",
+  display: "flex",
+  "align-items": "center",
+  gap: S[1.5],
+  width: "100%",
+  height: H.row,
+  // 10px, not 6px: the scroller above adds 4px of its own padding, so this is
+  // what puts the leading slot on the same x as a tab row's.
+  padding: "0 12px 0 10px",
+  border: "none",
+  "border-top": `1px solid ${C.borderSub}`,
   cursor: "pointer",
-  "font-size": "12px",
-  "margin-top": "4px",
-  transition: "color 0.1s, border-color 0.1s",
+  "flex-shrink": 0,
+  ...T[12],
+  "--btn-bg": "transparent",
+  "--btn-fg": C.text3,
+  "--btn-fg-hover": C.text,
 } as const;
