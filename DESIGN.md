@@ -42,10 +42,12 @@ the rules `npm run check` enforces and the ones a reviewer must enforce by eye.
 `.bs-btn`, `.bs-iconbtn`, `.bs-row`, `.bs-pill`, `.bs-input`, `.bs-menu-item`,
 `.bs-resize`, `.bs-tip` own `:hover / :active / :focus-visible / :disabled`.
 Any property a class drives on a state must **not** also be set inline on that
-element — inline sets the slot (`--btn-bg`), the class reads
-`var(--btn-bg, transparent)`. Setting `background` inline defeats the hover
-rule silently. Delete `onMouseOver`/`onMouseOut` handlers that only rewrite
-style; keep the handler if it also does real work (e.g. `setHoverPath`).
+element — inline sets the slot (`--btn-bg` for background, `--btn-fg` for
+foreground), the class reads `var(--btn-bg, transparent)` /
+`var(--btn-fg, inherit)`. Setting `background` or `color` inline defeats the
+hover and `[aria-pressed]` rules silently. Delete `onMouseOver`/`onMouseOut`
+handlers that only rewrite style; keep the handler if it also does real work
+(e.g. `setHoverPath`).
 
 ## Tooltips
 
@@ -73,7 +75,9 @@ imported). It is UI chrome only, via `FONT.mono`.
 2. `xtermTheme.background` must equal the host element's background
    (`RAW.bg2`, opaque).
 3. Card treatment is `border-radius` + `overflow: hidden` on the `Terminal.tsx`
-   root only. No shadow.
+   root only. No shadow. The 6px gutter around it belongs to a *static*
+   wrapper in `App.tsx` — padding on the terminals' own positioned container
+   would be invisible, since `inset: 0` resolves against the padding box.
 4. After touching padding / lineHeight / overviewRulerWidth, re-check cols and
    rows against `htop`, `fzf`, `ls --color`, a Claude Code TUI, and a CJK diff.
 5. Panel toggles never animate column widths — fade the content instead.

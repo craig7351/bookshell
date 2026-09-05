@@ -103,6 +103,9 @@ button:disabled,
 .bs-pill,
 .bs-menu-item {
   background: var(--btn-bg, transparent);
+  /* Foreground is a slot too: [aria-pressed=true] below has to be able to
+     repaint it accent-blue, and an inline `color` would silently win. */
+  color: var(--btn-fg, inherit);
   transition:
     background var(--dur-1) var(--ease),
     color var(--dur-1) var(--ease),
@@ -179,15 +182,47 @@ button:disabled,
   color: var(--text-4);
 }
 
-/* Split / panel resize handles. */
+/* Split / panel resize handles.
+   The element is an 8px grab strip pulled into the gutter with a -4px margin,
+   so it costs no layout width and the terminal card keeps its 6px inset. Only
+   a 2px accent bar is painted, and only on hover / while dragging — an always
+   visible divider is the "double hairline" this phase removes. */
 .bs-resize {
-  background: var(--resize-bg, transparent);
-  transition: background var(--dur-1) var(--ease);
+  position: relative;
+  flex-shrink: 0;
+  background: transparent;
 }
 
-.bs-resize:hover,
-.bs-resize:active {
+.bs-resize::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
   background: var(--accent);
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+.bs-resize:hover::after {
+  opacity: 0.5;
+}
+
+.bs-resize[data-dragging="true"]::after {
+  opacity: 1;
+}
+
+/* Set on <body> for the duration of a drag: keeps the resize cursor while the
+   pointer runs over the terminal and stops the drag selecting text. */
+body.bs-dragging {
+  cursor: col-resize;
+  user-select: none;
+}
+
+body.bs-dragging * {
+  cursor: col-resize !important;
 }
 
 /* ---------------------------------------------------------------- tooltip */

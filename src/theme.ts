@@ -205,6 +205,7 @@ export const C = {
   orangeBg:    "var(--orange-fill)",
   purple:      "var(--purple)",
   purpleBg:    "var(--purple-fill)",
+  purpleBdr:   "var(--purple-line)",
   scrim:       "var(--scrim)",
   scrimTerm:   "var(--scrim-term)",
   scrimDrop:   "var(--scrim-drop)",

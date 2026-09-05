@@ -1,5 +1,4 @@
 import { createEffect, createSignal, For, onMount, Show } from "solid-js";
-import { getVersion } from "@tauri-apps/api/app";
 import { ButtonEditor } from "./components/ButtonEditor";
 import { CommandBar } from "./components/CommandBar";
 import { ConnectionDialog } from "./components/ConnectionDialog";
@@ -21,7 +20,9 @@ import { isMac, loadConnections } from "./stores/connections";
 import { loadGeneral } from "./stores/general";
 import { closeSearch, openSearch, searchTabId } from "./stores/search";
 import { actionFor } from "./stores/shortcuts";
-import { C } from "./theme";
+import { Icon, type IconName } from "./icons";
+import { StatusDot } from "./components/ui/StatusDot";
+import { button, C, H, R, S, SH, T } from "./theme";
 import {
   activeTab,
   activeTabId,
@@ -43,9 +44,15 @@ import {
 } from "./stores/tabs";
 
 const LAYOUT_LABEL: Record<string, string> = {
-  horizontal: "↔ Horizontal",
-  vertical: "↕ Vertical",
-  "right-split": "⊞ Right",
+  horizontal: "Horizontal",
+  vertical: "Vertical",
+  "right-split": "Right",
+};
+
+const LAYOUT_ICON: Record<string, IconName> = {
+  horizontal: "columns-2",
+  vertical: "rows-2",
+  "right-split": "panel-right",
 };
 
 export default function App() {
@@ -54,16 +61,17 @@ export default function App() {
   const [showSettings, setShowSettings] = createSignal(false);
   const [colDragging, setColDragging] = createSignal(false);
   const [filesColDragging, setFilesColDragging] = createSignal(false);
-  const [appVersion, setAppVersion] = createSignal("");
 
   function startColDrag(ev: MouseEvent) {
     ev.preventDefault();
     setColDragging(true);
+    document.body.classList.add("bs-dragging");
     const startX = ev.clientX;
     const startW = gitWidth();
     const onMove = (e: MouseEvent) => setGitWidth(startW + (startX - e.clientX));
     const onUp = () => {
       setColDragging(false);
+      document.body.classList.remove("bs-dragging");
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
     };
@@ -76,11 +84,13 @@ export default function App() {
   function startFilesColDrag(ev: MouseEvent) {
     ev.preventDefault();
     setFilesColDragging(true);
+    document.body.classList.add("bs-dragging");
     const startX = ev.clientX;
     const startW = filesWidth();
     const onMove = (e: MouseEvent) => setFilesWidth(startW + (startX - e.clientX));
     const onUp = () => {
       setFilesColDragging(false);
+      document.body.classList.remove("bs-dragging");
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
     };
@@ -120,7 +130,6 @@ export default function App() {
   });
 
   onMount(() => {
-    getVersion().then(setAppVersion).catch(() => {});
     initDiagnostics();
 
     // Connections must be loaded before tab restore so reconnect can find profiles.
@@ -307,28 +316,29 @@ export default function App() {
           </div>
         </Show>
 
-        <strong style={{ color: C.accent, "font-size": "13px", "letter-spacing": "0.04em" }}>BOOKSHELL</strong>
+        <div style={{ display: "flex", "align-items": "center", gap: S[1.5], "flex-shrink": 0 }}>
+          <Icon name="terminal" size={16} style={{ color: C.text3 }} />
+          <span style={brandStyle}>BOOKSHELL</span>
+        </div>
 
         <Show when={activeTab()}>
           {(t) => (
-            <span style={{ "font-size": "12px", color: C.text2, display: "flex", "align-items": "center", gap: "6px" }}>
+            <span style={{ ...T[12], color: C.text2, display: "flex", "align-items": "center", gap: S[1.5] }}>
               {/* "connected" is the steady state — drop the text so the
                *  header stops yelling "everything is fine" on every active
-               *  tab. Show transient/broken states with a glyph + label. */}
+               *  tab. Show transient/broken states with a dot + label. */}
               <Show when={t().status !== "connected"}>
                 <span
-                  class={t().status === "connecting" ? "bs-pulse" : undefined}
                   style={{
-                    color:
-                      t().status === "error"
-                        ? C.red
-                        : t().status === "disconnected"
-                          ? C.text3
-                          : C.yellow,
+                    display: "flex",
+                    "align-items": "center",
+                    gap: S[1.5],
+                    color: t().status === "error" ? C.red : C.text3,
                     "font-weight": t().status === "error" ? 600 : 400,
                   }}
                 >
-                  {t().status === "connecting" ? "◐" : t().status === "error" ? "!" : "○"} {t().status}
+                  <StatusDot state={t().status} />
+                  {t().status}
                 </span>
               </Show>
               <Show when={t().errorMessage}>
@@ -336,17 +346,12 @@ export default function App() {
               </Show>
               <Show when={t().passthrough}>
                 <span
-                  title="AI passthrough on (Ctrl+Shift+P to disable)"
-                  style={{
-                    background: C.purple,
-                    color: "#fff",
-                    padding: "1px 7px",
-                    "border-radius": "10px",
-                    "font-size": "11px",
-                    "font-weight": 600,
-                  }}
+                  class="bs-tip"
+                  data-tip="AI passthrough on (Ctrl+Shift+P to disable)"
+                  style={passthroughBadge}
                 >
-                  🤖 passthrough
+                  <Icon name="bot" size={12} />
+                  passthrough
                 </span>
               </Show>
             </span>
@@ -354,80 +359,80 @@ export default function App() {
         </Show>
 
         {/* right-side toolbar */}
-        <div style={{ "margin-left": "auto", display: "flex", gap: "4px", "align-items": "center" }}>
+        <div style={{ "margin-left": "auto", display: "flex", gap: S[1], "align-items": "center" }}>
           <Show when={activeTabId() && (isGitOpen(activeTabId()!) || isSideTermOpen(activeTabId()!) || filesOpen())}>
-            <button onClick={cycleLayout} style={toolBtn} title="Cycle layout">
+            <button class="bs-btn bs-tip" data-tip="Cycle layout" onClick={cycleLayout} style={toolBtn}>
+              <Icon name={LAYOUT_ICON[layoutMode()]} size={14} />
               {LAYOUT_LABEL[layoutMode()]}
             </button>
           </Show>
+
+          {/* One segmented control — the three panel toggles are one choice,
+           *  not three unrelated buttons in individual boxes. */}
+          <div style={segmentedStyle}>
+            <button
+              class="bs-btn bs-tip"
+              data-tip="Side terminal (cwd if marked)"
+              aria-pressed={!!activeTabId() && isSideTermOpen(activeTabId()!)}
+              onClick={() => { const id = activeTabId(); if (id) toggleSideTerm(id); }}
+              style={segBtn}
+              disabled={!activeTabId()}
+            >
+              <Icon name="terminal" size={14} />
+              Terminal
+            </button>
+            <button
+              class="bs-btn bs-tip"
+              data-tip="Toggle git view"
+              aria-pressed={!!activeTabId() && isGitOpen(activeTabId()!)}
+              onClick={() => { const id = activeTabId(); if (id) toggleGit(id); }}
+              style={segBtn}
+              disabled={!activeTabId()}
+            >
+              <Icon name="git-branch" size={14} />
+              Git
+            </button>
+            <button
+              class="bs-btn bs-tip"
+              data-tip="File browser"
+              aria-pressed={filesOpen()}
+              onClick={() => { if (activeTabId()) toggleFiles(); }}
+              style={segBtn}
+              disabled={!activeTabId()}
+            >
+              <Icon name="folder" size={14} />
+              Files
+            </button>
+          </div>
+
           <button
-            onClick={() => { const id = activeTabId(); if (id) toggleSideTerm(id); }}
-            style={{
-              ...toolBtn,
-              background: activeTabId() && isSideTermOpen(activeTabId()!) ? C.accentBg : "transparent",
-              color: activeTabId() && isSideTermOpen(activeTabId()!) ? C.accent : C.text2,
-              border: `1px solid ${activeTabId() && isSideTermOpen(activeTabId()!) ? C.accentBdr : C.border}`,
-            }}
-            title="Side terminal (📍 cwd if marked)"
-            disabled={!activeTabId()}
-          >
-            📟 Terminal
-          </button>
-          <button
-            onClick={() => { const id = activeTabId(); if (id) toggleGit(id); }}
-            style={{
-              ...toolBtn,
-              background: activeTabId() && isGitOpen(activeTabId()!) ? C.accentBg : "transparent",
-              color: activeTabId() && isGitOpen(activeTabId()!) ? C.accent : C.text2,
-              border: `1px solid ${activeTabId() && isGitOpen(activeTabId()!) ? C.accentBdr : C.border}`,
-            }}
-            title="Toggle git view"
-            disabled={!activeTabId()}
-          >
-            🌿 Git
-          </button>
-          <button
-            onClick={() => { if (activeTabId()) toggleFiles(); }}
-            style={{
-              ...toolBtn,
-              background: filesOpen() ? C.accentBg : "transparent",
-              color: filesOpen() ? C.accent : C.text2,
-              border: `1px solid ${filesOpen() ? C.accentBdr : C.border}`,
-            }}
-            title="File browser"
-            disabled={!activeTabId()}
-          >
-            📁 Files
-          </button>
-          <button
+            class="bs-iconbtn bs-tip"
+            data-tip="Search (Ctrl+F)"
+            aria-pressed={!!activeTabId() && searchTabId() === activeTabId()}
             onClick={() => {
               const id = activeTabId();
               if (!id) return;
               if (searchTabId() === id) closeSearch();
               else openSearch(id);
             }}
-            style={{ ...toolBtn, color: C.text2, border: `1px solid ${C.border}` }}
-            title="Search (Ctrl+F)"
+            style={iconBtn}
             disabled={!activeTabId()}
           >
-            🔍 Find
+            <Icon name="search" size={14} />
           </button>
-          <div style={{ width: "1px", height: "16px", background: C.border, margin: "0 2px" }} />
-          <button onClick={() => setShowDialog(true)} style={btnPrimary}>
-            + Connect
+          <div style={{ width: "1px", height: "16px", background: C.borderSub, margin: `0 ${S[0.5]}` }} />
+          <button class="bs-btn" onClick={() => setShowDialog(true)} style={primaryBtn}>
+            <Icon name="plus" size={14} />
+            Connect
           </button>
           <button
+            class="bs-iconbtn bs-tip"
+            data-tip="Settings"
             onClick={() => setShowSettings(true)}
-            style={{ ...toolBtn, color: C.text2, border: `1px solid ${C.border}`, "font-size": "15px", padding: "3px 9px" }}
-            title="Settings"
+            style={iconBtn}
           >
-            ⚙
+            <Icon name="settings" size={14} />
           </button>
-          <Show when={appVersion()}>
-            <span style={{ "font-size": "11px", color: C.text3, "letter-spacing": "0.02em" }}>
-              v{appVersion()}
-            </span>
-          </Show>
         </div>
       </div>
 
@@ -440,20 +445,31 @@ export default function App() {
             "min-height": 0,
             "flex-direction": layoutMode() === "vertical" ? "column" : "row",
           }}>
-            <div style={{ flex: 1, position: "relative", "min-width": 0, "min-height": 0 }}>
-              <Show
-                when={tabs().length > 0}
-                fallback={
-                  <div style={emptyStyle}>
-                    <div>No active session</div>
-                    <button onClick={() => setShowDialog(true)} style={btnPrimary}>+ Connect</button>
-                  </div>
-                }
-              >
-                <For each={tabs()}>
-                  {(t) => <TerminalView tab={t} active={t.id === activeTabId()} />}
-                </For>
-              </Show>
+            {/* The 6px gutter that turns the terminal into a card lives on
+             *  this wrapper, NOT on the positioned box below: an absolutely
+             *  positioned child resolves `inset: 0` against the padding box,
+             *  so padding on the terminals' own containing block would be
+             *  invisible. Left/bottom stay flush against the TabBar and the
+             *  CommandBar. */}
+            <div style={{ flex: 1, "min-width": 0, "min-height": 0, display: "flex", padding: `${S[1.5]} ${S[1.5]} 0 0` }}>
+              <div style={{ flex: 1, position: "relative", "min-width": 0, "min-height": 0 }}>
+                <Show
+                  when={tabs().length > 0}
+                  fallback={
+                    <div style={emptyStyle}>
+                      <div>No active session</div>
+                      <button class="bs-btn" onClick={() => setShowDialog(true)} style={button("primary", "roomy")}>
+                        <Icon name="plus" size={14} />
+                        Connect
+                      </button>
+                    </div>
+                  }
+                >
+                  <For each={tabs()}>
+                    {(t) => <TerminalView tab={t} active={t.id === activeTabId()} />}
+                  </For>
+                </Show>
+              </div>
             </div>
 
             {/* horizontal / vertical: panels render standalone */}
@@ -464,15 +480,10 @@ export default function App() {
               <Show when={activeTabId() && filesOpen()}>
                 {/* Inline file-browser column with its own resize handle. */}
                 <div
+                  class="bs-resize"
+                  data-dragging={filesColDragging() ? "true" : "false"}
                   onMouseDown={startFilesColDrag}
-                  style={{
-                    width: "4px",
-                    cursor: "col-resize",
-                    background: filesColDragging() ? C.accent : "transparent",
-                    "border-right": `1px solid ${C.border}`,
-                    "flex-shrink": "0",
-                    transition: "background 0.15s",
-                  }}
+                  style={resizeHandle}
                   title="Drag to resize file browser"
                 />
                 <div style={{
@@ -482,7 +493,6 @@ export default function App() {
                   "flex-shrink": "0",
                   "min-height": 0,
                   background: C.bg2,
-                  "border-left": `1px solid ${C.border}`,
                 }}>
                   <FileBrowser />
                 </div>
@@ -496,15 +506,10 @@ export default function App() {
             <Show when={layoutMode() === "right-split" && activeTabId() && (isGitOpen(activeTabId()!) || isSideTermOpen(activeTabId()!) || filesOpen())}>
               {/* left-edge drag handle for column width */}
               <div
+                class="bs-resize"
+                data-dragging={colDragging() ? "true" : "false"}
                 onMouseDown={startColDrag}
-                style={{
-                  width: "4px",
-                  cursor: "col-resize",
-                  background: colDragging() ? C.accent : "transparent",
-                  "border-right": `1px solid ${C.border}`,
-                  "flex-shrink": "0",
-                  transition: "background 0.15s",
-                }}
+                style={resizeHandle}
                 title="Drag to resize column"
               />
               <div style={{
@@ -514,7 +519,6 @@ export default function App() {
                 "flex-shrink": "0",
                 "min-height": 0,
                 background: C.bg2,
-                "border-left": `1px solid ${C.border}`,
               }}>
                 <Show when={activeTabId() && isGitOpen(activeTabId()!)}>
                   <GitPanel />
@@ -554,13 +558,38 @@ export default function App() {
 }
 
 const headerStyle = {
-  padding: "7px 12px",
+  height: "40px",
+  padding: "0 10px",
   "background-color": C.bg2,
-  "border-bottom": `1px solid ${C.border}`,
+  // The header draws the seam; the TabBar / canvas below it draw nothing, so
+  // there is exactly one hairline. --hl-top supplies the top edge highlight
+  // that the old blurred glass surface used to give it.
+  "box-shadow": `inset 0 -1px 0 ${C.borderSub}, ${SH.hlTop}`,
   display: "flex",
-  gap: "8px",
+  gap: S[2],
   "align-items": "center",
   "flex-shrink": 0,
+} as const;
+
+const brandStyle = {
+  ...T[12],
+  "font-weight": 600,
+  color: C.text,
+  "letter-spacing": "0.08em",
+} as const;
+
+const passthroughBadge = {
+  display: "inline-flex",
+  "align-items": "center",
+  gap: S[1],
+  height: H.compact,
+  padding: `0 ${S[2]}`,
+  background: C.purpleBg,
+  color: C.purple,
+  border: `1px solid ${C.purpleBdr}`,
+  "border-radius": R.full,
+  ...T[11],
+  "font-weight": 600,
 } as const;
 
 const emptyStyle = {
@@ -569,30 +598,58 @@ const emptyStyle = {
   "align-items": "center",
   "justify-content": "center",
   height: "100%",
-  gap: "16px",
+  gap: S[4],
   color: C.text3,
 } as const;
 
-/** Small pill-shaped toolbar button */
+/** Ghost toolbar button. Background / foreground are slots the .bs-btn class
+ *  drives on hover and on [aria-pressed=true] — never set them inline here. */
 const toolBtn = {
-  background: "transparent",
-  color: C.text2,
-  border: `1px solid ${C.border}`,
-  padding: "3px 10px",
-  "border-radius": "6px",
-  "font-size": "12px",
-  cursor: "pointer",
+  display: "inline-flex",
+  "align-items": "center",
+  "justify-content": "center",
+  gap: S[1.5],
+  height: H.default,
+  padding: `0 ${S[2]}`,
+  border: "1px solid transparent",
+  "border-radius": R.sm,
+  ...T[12],
   "font-weight": 500,
   "white-space": "nowrap",
+  cursor: "pointer",
+  "--btn-bg": "transparent",
+  "--btn-fg": C.text3,
 } as const;
 
-const btnPrimary = {
-  background: C.accent,
-  color: "#fff",
-  border: "none",
-  padding: "4px 13px",
-  "border-radius": "6px",
-  "font-size": "12px",
-  cursor: "pointer",
-  "font-weight": 600,
+/** Track for the Terminal / Git / Files segmented control. */
+const segmentedStyle = {
+  display: "flex",
+  gap: S[0.5],
+  padding: S[0.5],
+  background: C.bg3,
+  "border-radius": R.md,
+} as const;
+
+/** A segment: same anatomy as toolBtn, shorter so track + segment = 26px. */
+const segBtn = {
+  ...toolBtn,
+  height: H.compact,
+} as const;
+
+/** 26x26 icon-only button (Find, Settings). */
+const iconBtn = {
+  ...toolBtn,
+  width: H.default,
+  padding: "0",
+} as const;
+
+const primaryBtn = button("primary", "default");
+
+/** 8px grab strip pulled into the gutter with a negative margin so it costs
+ *  no layout width; the visible 2px bar is painted by .bs-resize::after. */
+const resizeHandle = {
+  width: S[2],
+  margin: `0 -${S[1]}`,
+  cursor: "col-resize",
+  "z-index": "5",
 } as const;

@@ -34,6 +34,9 @@ interface MatchInfo {
 export function TerminalView(props: Props) {
   let host!: HTMLDivElement;
   let term: Terminal | undefined;
+  /** Set by onCleanup so deferred work (the WebGL retry timer) can bail out
+   *  instead of touching a disposed terminal. */
+  let termDisposed = false;
   let fit: FitAddon | undefined;
   let search: SearchAddon | undefined;
   let highlightAddons: SearchAddon[] = [];
@@ -189,13 +192,33 @@ export function TerminalView(props: Props) {
         api.urlOpen(uri).catch((e) => console.warn("url_open failed", e));
       }),
     );
-    try {
-      const webgl = new WebglAddon();
-      webgl.onContextLoss(() => webgl.dispose());
-      term.loadAddon(webgl);
-    } catch (e) {
-      console.warn("WebGL addon failed", e);
-    }
+    // WebGL renderer with one-shot context-loss recovery. A lost GL context
+    // (GPU reset, driver update, compositor hiccup) leaves the addon dead and
+    // silently drops xterm to the DOM renderer for the rest of the session.
+    // Dispose it, wait a second for the driver to settle, then mount a fresh
+    // addon exactly once; a second failure means the GPU path is unusable, so
+    // record it (console.error feeds the diagnostics buffer) and stay on DOM.
+    let webglRetried = false;
+    const mountWebgl = () => {
+      if (!term || termDisposed) return;
+      try {
+        const addon = new WebglAddon();
+        addon.onContextLoss(() => {
+          addon.dispose();
+          if (webglRetried) {
+            console.error("WebGL context lost again — terminal stays on the DOM renderer");
+            return;
+          }
+          webglRetried = true;
+          setTimeout(mountWebgl, 1000);
+        });
+        term.loadAddon(addon);
+      } catch (e) {
+        if (webglRetried) console.error("WebGL renderer unavailable after context loss", e);
+        else console.warn("WebGL addon failed", e);
+      }
+    };
+    mountWebgl();
     term.open(host);
     fit.fit();
 
@@ -474,7 +497,10 @@ export function TerminalView(props: Props) {
     }
   });
 
-  onCleanup(() => term?.dispose());
+  onCleanup(() => {
+    termDisposed = true;
+    term?.dispose();
+  });
 
   return (
     <div
@@ -483,6 +509,13 @@ export function TerminalView(props: Props) {
         inset: "0",
         visibility: props.active ? "visible" : "hidden",
         "pointer-events": props.active ? "auto" : "none",
+        // The terminal card. App.tsx has no per-tab wrapper to round, so the
+        // radius lives here and clips every overlay this component stacks on
+        // top. Background must match xtermTheme.background exactly (RAW.bg2)
+        // or a seam shows at the corners. No shadow, no filter — xterm rule 1.
+        background: C.bg,
+        "border-radius": R.md,
+        overflow: "hidden",
       }}
     >
       <div
