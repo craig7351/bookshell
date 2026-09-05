@@ -151,10 +151,15 @@ export function ContextMenu(props: Props) {
 const OVERLAP = 4;
 
 /**
- * A second level, anchored on its parent row. It is fixed-positioned but still
- * a DOM child of that row, so the pointer can travel into it without the row
- * losing hover — and `usePopoverPosition` flips it to the other side of the
- * menu when the window edge is close.
+ * A second level, anchored on its parent row. It renders through its own
+ * Portal: the parent menu animates with a transform, and a transformed
+ * ancestor becomes the containing block of any `position: fixed` descendant,
+ * which would turn the submenu's viewport coordinates into an offset from the
+ * menu and throw it into the bottom-right corner. Hover is not affected — the
+ * row only ever *opens* a submenu on mouseenter and never closes it on leave,
+ * so the pointer can cross the 4px overlap into the portaled surface freely.
+ * `data-context-menu` keeps the global outside-click handler from treating a
+ * click inside the submenu as "outside".
  */
 function Submenu(props: { items: MenuItem[]; anchor: DOMRect; onClose: () => void }) {
   const pop = usePopoverPosition(() => ({
@@ -165,7 +170,9 @@ function Submenu(props: { items: MenuItem[]; anchor: DOMRect; onClose: () => voi
   }));
 
   return (
+    <Portal>
     <div
+      data-context-menu
       role="menu"
       ref={pop.ref}
       style={{
@@ -201,6 +208,7 @@ function Submenu(props: { items: MenuItem[]; anchor: DOMRect; onClose: () => voi
         )}
       </For>
     </div>
+    </Portal>
   );
 }
 
