@@ -80,6 +80,11 @@ const PATHS = {
   "alert-triangle":
     '<path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
 
+  "maximize-2":
+    '<path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/>',
+  "minimize-2":
+    '<path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="M14 10l7-7"/><path d="M3 21l7-7"/>',
+
   // --- layout --------------------------------------------------------------
   "columns-2": '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18"/>',
   "rows-2": '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h18"/>',

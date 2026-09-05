@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, onMount, Show, type JSX } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { api, type DirListing, type FsEntry } from "../ipc/api";
 import { activeTab, captureCwd } from "../stores/tabs";
 import {
@@ -7,9 +7,10 @@ import {
   toggleFilesShowHidden,
 } from "../stores/files";
 import { layoutMode } from "../stores/layout";
-import { C, FONT, H, R, S, T } from "../theme";
+import { button, C, FONT, H, R, S, T } from "../theme";
 import { Icon, type IconName } from "../icons";
 import { PanelHeader, panelCard } from "./ui/PanelHeader";
+import { EmptyState, Skeleton } from "./ui/EmptyState";
 import { Notice } from "./ui/Notice";
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|bmp|ico|svg|avif|tiff?)$/i;
@@ -142,6 +143,19 @@ export function FileBrowser() {
     if (!l) return [];
     if (filesShowHidden()) return l.entries;
     return l.entries.filter((e) => !e.name.startsWith("."));
+  });
+
+  /** A listing that answers in 40ms should not flash a skeleton, so the
+   *  placeholder waits 150ms before it appears. Anything slower than that is
+   *  slow enough that the user wants to see the shape of the answer. */
+  const [showSkeleton, setShowSkeleton] = createSignal(false);
+  createEffect(() => {
+    if (!loading()) {
+      setShowSkeleton(false);
+      return;
+    }
+    const t = setTimeout(() => setShowSkeleton(true), 150);
+    onCleanup(() => clearTimeout(t));
   });
 
   const crumbs = createMemo(() => crumbsFor(listing()?.path ?? ""));
@@ -382,24 +396,49 @@ export function FileBrowser() {
       </Show>
 
       <div style={listStyle}>
-        <Show when={loading()}>
-          <div style={hintStyle}>Loading…</div>
+        <Show when={loading() && showSkeleton()}>
+          <Skeleton rows={6} />
         </Show>
         <Show when={!loading() && listing()}>
           <For
             each={visibleEntries()}
             fallback={
-              <div style={hintStyle}>
-                {filesShowHidden() || listing()!.entries.length === 0
-                  ? "Empty directory"
-                  : "No visible entries — only dotfiles here."}
-              </div>
+              <Show
+                when={filesShowHidden() || listing()!.entries.length === 0}
+                fallback={
+                  <EmptyState
+                    icon="eye-off"
+                    title="Only dotfiles here"
+                    description="Every entry in this directory starts with a dot."
+                    action={
+                      <button class="bs-btn" style={button("secondary", "compact")} onClick={toggleFilesShowHidden}>
+                        <Icon name="eye" size={12} />
+                        Show dotfiles
+                      </button>
+                    }
+                  />
+                }
+              >
+                <EmptyState
+                  icon="folder-open"
+                  title="Empty directory"
+                  description="Nothing to list here yet."
+                />
+              </Show>
             }
           >
             {(e) => (
               <div
                 class="bs-row"
+                role="button"
+                tabindex={0}
                 onClick={() => onEntry(e)}
+                onKeyDown={(ev) => {
+                  if (ev.key === "Enter" || ev.key === " ") {
+                    ev.preventDefault();
+                    onEntry(e);
+                  }
+                }}
                 style={{
                   ...rowStyle,
                   "--btn-fg": e.is_dir ? C.text : C.text2,
@@ -543,12 +582,6 @@ const listStyle = {
   "overflow-y": "auto",
   "min-height": 0,
   padding: `${S[1]} ${S[1.5]}`,
-} as const;
-
-const hintStyle = {
-  padding: `${S[3]} ${S[2]}`,
-  color: C.text3,
-  ...T[12],
 } as const;
 
 const rowStyle = {

@@ -67,7 +67,18 @@ margin, exactly like the column handle, so the gap stays 6px.
 
 `ui/EmptyState.tsx` (28px `--text-4` glyph, `--t-13`/500 title) and its
 `Skeleton`, and `ui/Notice.tsx` (one tinted inline band, four tones) are the
-only "nothing here" / "something happened" blocks a panel may use.
+only "nothing here" / "something happened" blocks a panel may use. A panel
+shows `Skeleton` on its FIRST load only — a refresh keeps the stale list on
+screen — and a list that answers in under 150ms shows no placeholder at all.
+
+A file status marker is a 16px `StatusBadge` chip, never a bare letter on the
+text baseline, and a path is always two parts: the filename in `--text-1` and
+its directory in `--text-3`/`--t-11`, the directory being the half that
+truncates. The Git diff viewer is pre-parsed (`parseDiff`) rather than styled
+line-by-line at render time: line numbers cannot be accumulated inside a
+SolidJS render callback. Its two number gutters are `--text-3` (they are
+information, not decoration) and the `+`/`-` marker is its own
+`user-select: none` column, so copying a diff yields code that compiles.
 
 ## Tooltips
 

@@ -1,5 +1,5 @@
 import { createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner, Show } from "solid-js";
-import { C, FONT, xtermThemeFor } from "../theme";
+import { C, FONT, R, xtermThemeFor } from "../theme";
 import { PanelHeader, panelCard } from "./ui/PanelHeader";
 import { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -27,6 +27,10 @@ export function SideTerminalPanel() {
   const entry = () => sideTermState.entries[tabId()];
 
   const [dragging, setDragging] = createSignal(false);
+  /** True while the xterm helper textarea holds focus. Drives the header's
+   *  title tier and its accent dot, so three open panels always say which one
+   *  the keyboard is talking to. */
+  const [focused, setFocused] = createSignal(false);
 
   function startDrag(ev: MouseEvent) {
     ev.preventDefault();
@@ -77,10 +81,10 @@ export function SideTerminalPanel() {
             position: "relative",
           }}
         >
-          <SideHeader tabId={tabId()} opening={!!entry()?.opening} error={entry()?.error} />
+          <SideHeader tabId={tabId()} opening={!!entry()?.opening} error={entry()?.error} focused={focused()} />
           <div style={{ flex: 1, "min-height": 0, position: "relative" }}>
             <Show when={sid()} keyed>
-              {(s) => <SideTerminalView sessionId={s} parentTabId={tabId()} />}
+              {(s) => <SideTerminalView sessionId={s} parentTabId={tabId()} onFocusChange={setFocused} />}
             </Show>
           </div>
         </div>
@@ -126,10 +130,10 @@ export function SideTerminalPanel() {
           position: "relative",
         }}
       >
-        <SideHeader tabId={tabId()} opening={!!entry()?.opening} error={entry()?.error} />
+        <SideHeader tabId={tabId()} opening={!!entry()?.opening} error={entry()?.error} focused={focused()} />
         <div style={{ flex: 1, "min-height": 0, position: "relative" }}>
           <Show when={sid()} keyed>
-            {(s) => <SideTerminalView sessionId={s} parentTabId={tabId()} />}
+            {(s) => <SideTerminalView sessionId={s} parentTabId={tabId()} onFocusChange={setFocused} />}
           </Show>
         </div>
       </div>
@@ -139,14 +143,20 @@ export function SideTerminalPanel() {
 
 /** One header for both layouts. The status text lives in PanelHeader's meta
  *  slot so the title never shifts when a session is opening or errors. */
-function SideHeader(p: { tabId: string; opening: boolean; error?: string }) {
+function SideHeader(p: { tabId: string; opening: boolean; error?: string; focused: boolean }) {
   return (
     <PanelHeader
       icon="terminal"
       title="Side terminal"
+      focused={p.focused}
       meta={
         <Show when={p.error} fallback={p.opening ? "opening…" : undefined}>
           <span style={{ color: C.red }}>{p.error}</span>
+        </Show>
+      }
+      actions={
+        <Show when={p.focused}>
+          <span style={focusDot} />
         </Show>
       }
       onClose={() => closeSideTerm(p.tabId)}
@@ -154,6 +164,16 @@ function SideHeader(p: { tabId: string; opening: boolean; error?: string }) {
     />
   );
 }
+
+/** 6px accent dot: the panel that owns the keyboard. */
+const focusDot = {
+  display: "block",
+  width: "6px",
+  height: "6px",
+  "border-radius": R.full,
+  background: C.accent,
+  "flex-shrink": 0,
+} as const;
 
 /** Grab strips. No border of their own: the panel card already draws one, and
  *  a handle hairline next to it is the double line this phase removes. */
@@ -180,7 +200,7 @@ const colHandle = {
   "z-index": "5",
 } as const;
 
-function SideTerminalView(props: { sessionId: string; parentTabId: string }) {
+function SideTerminalView(props: { sessionId: string; parentTabId: string; onFocusChange: (v: boolean) => void }) {
   let host!: HTMLDivElement;
   let term: Terminal | undefined;
   let fit: FitAddon | undefined;
@@ -252,7 +272,14 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string }) {
             ta.value = "";
           }
         }, { capture: true, signal: ac.signal });
-        onCleanup(() => ac.abort());
+        // Focus awareness for the header. The listeners ride the same
+        // AbortController, so they are removed with everything else.
+        ta.addEventListener("focus", () => props.onFocusChange(true), { signal: ac.signal });
+        ta.addEventListener("blur", () => props.onFocusChange(false), { signal: ac.signal });
+        onCleanup(() => {
+          ac.abort();
+          props.onFocusChange(false);
+        });
       }
     }
 
