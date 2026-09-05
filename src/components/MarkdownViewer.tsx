@@ -3,7 +3,7 @@ import { marked, type Renderer } from "marked";
 import mermaid from "mermaid";
 import hljs from "highlight.js";
 import DOMPurify from "dompurify";
-import { C } from "../theme";
+import { C, RAW } from "../theme";
 import { api } from "../ipc/api";
 
 mermaid.initialize({
@@ -11,18 +11,20 @@ mermaid.initialize({
   theme: "base",
   themeVariables: {
     // Driven by the shared design tokens so diagrams track the app theme.
-    primaryColor: C.accent,
+    // These MUST come from RAW: mermaid derives shades with khroma, which
+    // parses the strings as real colours and cannot resolve a var().
+    primaryColor: RAW.accent,
     primaryTextColor: "#ffffff",
-    primaryBorderColor: C.accent,
-    lineColor: C.text2,
-    secondaryColor: C.green,
-    tertiaryColor: C.orange,
-    background: C.bg,
-    mainBkg: C.bg3,
-    nodeBorder: C.border,
-    clusterBkg: C.bg2,
-    titleColor: C.text,
-    edgeLabelBackground: C.bg3,
+    primaryBorderColor: RAW.accent,
+    lineColor: RAW.text2,
+    secondaryColor: RAW.green,
+    tertiaryColor: RAW.orange,
+    background: RAW.bg2,
+    mainBkg: RAW.bg4,
+    nodeBorder: RAW.line,
+    clusterBkg: RAW.bg1,
+    titleColor: RAW.text1,
+    edgeLabelBackground: RAW.bg4,
   },
 });
 

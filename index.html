@@ -4,46 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BOOKSHELL</title>
-    <link rel="stylesheet" href="/node_modules/@xterm/xterm/css/xterm.css" />
     <link rel="stylesheet" href="/node_modules/highlight.js/styles/github-dark.css" />
+    <link rel="stylesheet" href="/src/styles/tokens.css" />
+    <link rel="stylesheet" href="/src/styles/base.css" />
     <style>
+      /* Critical block only: everything that must be right on the very first
+         paint. Design tokens live in src/styles/tokens.css, all interaction
+         state and scrollbars in src/styles/base.css, and xterm.css is imported
+         from src/main.tsx. */
       html, body, #root {
         height: 100%; margin: 0;
         background: #1c1c1e;
         color: #f2f2f7;
-        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
         font-size: 13px;
         -webkit-font-smoothing: antialiased;
       }
       * { box-sizing: border-box; }
-      /* Chunky, easy-to-grab scrollbars. Wider track + a visible thumb with a
-         faint groove background so the draggable region is obvious even when
-         idle; brightens on hover / while dragging. */
-      ::-webkit-scrollbar { width: 14px; height: 14px; }
-      ::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); }
-      ::-webkit-scrollbar-thumb {
-        background: rgba(255,255,255,0.30);
-        border-radius: 7px;
-        /* transparent border → padding effect so the thumb reads as a rounded
-           pill inset from the track edges instead of filling the full width. */
-        border: 3px solid transparent;
-        background-clip: padding-box;
-        min-height: 32px;
-      }
-      ::-webkit-scrollbar-thumb:hover   { background: rgba(255,255,255,0.48); background-clip: padding-box; }
-      ::-webkit-scrollbar-thumb:active  { background: rgba(255,255,255,0.62); background-clip: padding-box; }
-      ::-webkit-scrollbar-corner { background: transparent; }
       button { font-family: inherit; }
       input, textarea, select { font-family: inherit; }
-
-      /* Tab status pulse — used by the "connecting" glyph in TabBar and the
-         header so transient states are immediately legible without needing
-         text labels. */
-      @keyframes bs-pulse {
-        0%, 100% { opacity: 1; }
-        50%      { opacity: 0.3; }
-      }
-      .bs-pulse { animation: bs-pulse 1.2s ease-in-out infinite; }
 
       /* Markdown viewer (.md-viewer) styles are injected at runtime from the
          shared design tokens — see src/components/MarkdownViewer.tsx. */

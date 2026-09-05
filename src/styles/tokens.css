@@ -1,0 +1,122 @@
+/* BOOKSHELL design tokens — single source of truth for the CSS side.
+ *
+ * Every value here is duplicated as a literal so the page is fully styled from
+ * the first paint, even before main.tsx calls applyTokens(RAW). applyTokens
+ * writes the very same values onto :root at boot; RAW in src/theme.ts is the
+ * authoritative copy for anything JavaScript has to read as a real colour
+ * (xterm, mermaid, hljs, <input type="color">, string concatenation).
+ *
+ * Never read a token from here in JS — a "var(--x)" string is not a colour.
+ */
+
+:root {
+  /* ---- Surfaces ------------------------------------------------------ */
+  --bg-0: #0e0e10;   /* deepest: StatusFooter, scrollbar track */
+  --bg-1: #141416;   /* chrome: header, TabBar, right column canvas */
+  --bg-2: #1c1c1e;   /* hero: xterm background + terminal card (opaque) */
+  --bg-3: #242427;   /* overlays: dialog, popover, menu, tooltip */
+  --bg-4: #2e2e30;   /* raised controls: input, segmented track, badge */
+
+  /* ---- The only three interaction fills ------------------------------ */
+  --fill-hover:    rgba(255, 255, 255, 0.06);
+  --fill-active:   rgba(255, 255, 255, 0.10);
+  --fill-selected: rgba(255, 255, 255, 0.14);
+
+  /* ---- Lines --------------------------------------------------------- */
+  --line:     rgba(255, 255, 255, 0.09);   /* container outline */
+  --line-sub: rgba(255, 255, 255, 0.055);  /* internal divider */
+
+  /* ---- Text (four tiers) --------------------------------------------- */
+  --text-1: #f2f2f7;                        /* body, titles */
+  --text-2: rgba(242, 242, 247, 0.72);      /* secondary but readable */
+  --text-3: rgba(242, 242, 247, 0.48);      /* meta (~4.3:1) */
+  --text-4: rgba(242, 242, 247, 0.30);      /* decorative only */
+
+  /* ---- Accent -------------------------------------------------------- */
+  --accent:       #0a84ff;
+  --accent-hover: #3d9dff;
+  --accent-press: #0870d8;
+  --accent-fill:  rgba(10, 132, 255, 0.16);
+  --accent-line:  rgba(10, 132, 255, 0.38);
+
+  /* ---- Semantic colours ---------------------------------------------- */
+  --green: #30d158;
+  --green-fill: rgba(48, 209, 88, 0.15);
+  --green-line: rgba(48, 209, 88, 0.35);
+  --yellow: #ffd60a;
+  --yellow-fill: rgba(255, 214, 10, 0.15);
+  --yellow-line: rgba(255, 214, 10, 0.35);
+  --orange: #ff9f0a;
+  --orange-fill: rgba(255, 159, 10, 0.15);
+  --orange-line: rgba(255, 159, 10, 0.35);
+  --red: #ff453a;
+  --red-fill: rgba(255, 69, 58, 0.16);
+  --red-line: rgba(255, 69, 58, 0.35);
+  --purple: #bf5af2;
+  --purple-fill: rgba(191, 90, 242, 0.15);
+  --purple-line: rgba(191, 90, 242, 0.35);
+  --cyan: #5ac8fa;
+  --cyan-fill: rgba(90, 200, 250, 0.15);
+  --cyan-line: rgba(90, 200, 250, 0.35);
+
+  /* ---- Scrims -------------------------------------------------------- */
+  --scrim:      rgba(0, 0, 0, 0.55);          /* dialog backdrop */
+  --scrim-term: rgba(14, 14, 16, 0.78);       /* terminal reconnect veil */
+  --scrim-drop: rgba(10, 132, 255, 0.08);     /* drag & drop tint */
+
+  /* ---- Traffic lights (window controls) ------------------------------ */
+  --tl-red: #ff5f57;
+  --tl-yellow: #ffbd2e;
+  --tl-green: #28c840;
+
+  /* ---- Elevation (no blur on the terminal path; see DESIGN rules) ----- */
+  --hl-top: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --sh-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --sh-2: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.35);
+  --sh-3: 0 24px 64px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.4);
+
+  /* ---- Radii --------------------------------------------------------- */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+  --r-xl: 14px;
+  --r-full: 999px;
+
+  /* ---- Spacing (4pt grid) -------------------------------------------- */
+  --s-05: 2px;
+  --s-1: 4px;
+  --s-15: 6px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+
+  /* ---- Control heights ----------------------------------------------- */
+  --h-compact: 22px;
+  --h-default: 26px;
+  --h-roomy: 30px;
+  --h-row: 28px;
+
+  /* ---- Type scale (size / line-height) -------------------------------- */
+  --t-10: 10px;  --t-10-lh: 14px;
+  --t-11: 11px;  --t-11-lh: 16px;
+  --t-12: 12px;  --t-12-lh: 16px;
+  --t-13: 13px;  --t-13-lh: 18px;
+  --t-15: 15px;  --t-15-lh: 20px;
+  --t-20: 20px;  --t-20-lh: 26px;
+
+  /* ---- Families ------------------------------------------------------- */
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "BS Mono", "JetBrains Mono", "SF Mono", "Cascadia Mono", Consolas, "Sarasa Mono TC", "Noto Sans Mono CJK TC", ui-monospace, monospace;
+
+  /* ---- Motion --------------------------------------------------------- */
+  --dur-1: 90ms;    /* hover / press */
+  --dur-2: 140ms;   /* popover, menu, tab, tooltip */
+  --dur-3: 200ms;   /* dialog, group expand */
+  --dur-breathe: 2600ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease-pop: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
