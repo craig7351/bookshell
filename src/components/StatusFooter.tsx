@@ -4,7 +4,7 @@ import { Icon, type IconName } from "../icons";
 import { activeTab, activeTabId, tabs } from "../stores/tabs";
 import { clearDiag, diagEntries } from "../stores/diagnostics";
 import { gitState } from "../stores/git";
-import { C, FONT, H, R, S, SH, T } from "../theme";
+import { button, C, FONT, H, M, R, S, SH, T, TYPO } from "../theme";
 
 /** Middle-truncate a path so the most distinctive parts (root + leaf) stay
  *  visible. Example: `/home/craig/projects/bookshell/src` (max 36)
@@ -70,10 +70,10 @@ export function StatusFooter() {
   };
 
   return (
-    <div style={footerStyle}>
+    <div class="bs-footer" style={footerStyle}>
       {/* — left: per-tab context — */}
       <Show when={cwd()}>
-        <Cell icon="map-pin" tip={`cwd: ${cwd()}`} align="start" color={C.text}>
+        <Cell icon="map-pin" tip={`cwd: ${cwd()}`} align="start" color={C.text2} mono>
           {shortenPath(cwd()!)}
         </Cell>
       </Show>
@@ -90,6 +90,7 @@ export function StatusFooter() {
             <Cell
               icon="git-branch"
               align="start"
+              mono
               tip={
                 info.upstream
                   ? `Branch ${b()} · upstream ${info.upstream}${trail ? ` (${trail})` : ""}`
@@ -110,17 +111,18 @@ export function StatusFooter() {
 
       <div style={{ flex: 1 }} />
 
-      {/* — right: system / process metrics — */}
-      <Cell icon="plug" tip="Open sessions">
+      {/* — right: system / process metrics. Fixed value widths so a digit
+          rolling over never nudges its neighbours sideways. — */}
+      <Cell icon="plug" tip="Open sessions" metric width="18px">
         {tabs().filter((t) => t.status === "connected").length}
       </Cell>
-      <Cell icon="activity" tip="Resident memory">
+      <Cell icon="activity" tip="Resident memory" metric width="58px">
         {stats() ? `${stats()!.rss_mb} MB` : "—"}
       </Cell>
-      <Cell icon="cpu" tip="CPU usage (delta since last poll)">
+      <Cell icon="cpu" tip="CPU usage (delta since last poll)" metric width="44px">
         {stats() ? `${stats()!.cpu_pct.toFixed(1)}%` : "—"}
       </Cell>
-      <Cell icon="clock" tip="Uptime">
+      <Cell icon="clock" tip="Uptime" metric width="56px">
         {formatUptime(uptime())}
       </Cell>
       <div
@@ -139,20 +141,23 @@ export function StatusFooter() {
             ...errBtnStyle,
             // Slots, never the properties themselves: .bs-btn owns background
             // and colour, so setting them inline would kill its hover state.
-            "--btn-fg": hasErrors() ? C.red : C.text2,
-            "--btn-bg": hasErrors() && open() ? C.redBg : "transparent",
+            // At zero the control is deliberately not a focal point.
+            "--btn-fg": hasErrors() ? C.red : C.text4,
+            "--btn-bg": hasErrors() ? C.redBg : "transparent",
           }}
-          data-tip={hasErrors() ? `${errCount()} log records` : "No recent errors"}
+          data-tip={hasErrors() ? `${errCount()} log records` : "No warnings or errors"}
         >
           <span style={iconSlot}>
-            <Icon name="alert-triangle" size={12} />
+            <Show when={hasErrors()} fallback={<span style={okDotStyle} />}>
+              <Icon name="alert-triangle" size={12} />
+            </Show>
           </span>
           {errCount()}
           <Icon
             name="chevron-down"
             size={12}
             style={{
-              opacity: 0.7,
+              color: C.text4,
               // The popover opens upward, so the chevron points up when closed.
               transform: open() ? "none" : "rotate(180deg)",
             }}
@@ -170,13 +175,12 @@ function DiagPopover() {
   return (
     <div style={popoverStyle}>
       <div style={popoverHeader}>
-        <span style={{ "font-size": "11px", color: C.text2, "letter-spacing": "0.04em" }}>
-          RECENT LOG · {diagEntries().length}
-        </span>
+        <span style={TYPO.section}>Recent log · {diagEntries().length}</span>
         <button
           type="button"
+          class="bs-btn"
           onClick={() => clearDiag()}
-          style={clearBtnStyle}
+          style={button("secondary", "compact")}
           disabled={diagEntries().length === 0}
         >
           Clear
@@ -185,12 +189,18 @@ function DiagPopover() {
       <div style={popoverList}>
         <Show
           when={diagEntries().length > 0}
-          fallback={<div style={emptyRowStyle}>No log records yet.</div>}
+          fallback={<div style={emptyRowStyle}>No warnings or errors.</div>}
         >
           <For each={[...diagEntries()].reverse()}>
             {(e) => (
-              <div style={rowStyle}>
-                <span style={{ ...levelTagStyle, color: e.level === "error" ? C.red : C.yellow }}>
+              <div class="bs-log-row" style={rowStyle}>
+                <span
+                  style={{
+                    ...levelTagStyle,
+                    color: e.level === "error" ? C.red : C.yellow,
+                    background: e.level === "error" ? C.redBg : C.yellowBg,
+                  }}
+                >
                   {e.level.toUpperCase()}
                 </span>
                 <span style={tsStyle}>{formatTs(e.ts_ms)}</span>
@@ -221,39 +231,44 @@ function formatTs(ms: number): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-const footerStyle = {
+const footerStyle: JSX.CSSProperties = {
   display: "flex",
   "align-items": "center",
   gap: "16px",
   // Vertical padding is 0 so a 22px compact control (the log button) fits the
   // 22px bar exactly instead of bleeding over the terminal above it.
   padding: `0 ${S[3]}`,
-  background: C.bg2,
-  "border-top": `1px solid ${C.border}`,
-  "font-size": "11px",
+  // The sunken floor of the window: darker than the chrome above it, and the
+  // only line it draws is the faint internal one.
+  background: C.bg0,
+  "border-top": `1px solid ${C.borderSub}`,
+  ...T[11],
   color: C.text2,
   "flex-shrink": 0,
   "user-select": "none",
   height: "22px",
-} as const;
+};
 
-const cellStyle = {
+const cellStyle: JSX.CSSProperties = {
   display: "inline-flex",
   "align-items": "center",
   gap: "4px",
   "white-space": "nowrap",
-} as const;
+  // Digits share one advance width, so a metric never re-flows as it ticks.
+  "font-variant-numeric": "tabular-nums",
+};
 
 /** Fixed 12px slot so every value starts on the same x whatever the glyph.
  *  The marker stays --text-4 even when the cell's text is coloured: it names
  *  the category, it is not the information. */
-const iconSlot = {
+const iconSlot: JSX.CSSProperties = {
   display: "inline-flex",
   width: "12px",
   "justify-content": "center",
+  "align-items": "center",
   "flex-shrink": 0,
   color: C.text4,
-} as const;
+};
 
 interface CellProps {
   icon: IconName;
@@ -264,6 +279,14 @@ interface CellProps {
    *  the window. */
   align?: "start" | "end";
   color?: string;
+  /** A machine value — path, branch. Rendered in the mono face. */
+  mono?: boolean;
+  /** A system metric: --text-4 at rest, lifting to --text-3 while the pointer
+   *  is anywhere on the footer. Colour comes from `.bs-metric` in base.css, so
+   *  a metric cell must not carry `color`. */
+  metric?: boolean;
+  /** Fixed width for the value, so neighbours never shift as digits change. */
+  width?: string;
   children: JSX.Element;
 }
 
@@ -271,20 +294,24 @@ interface CellProps {
 function Cell(props: CellProps) {
   return (
     <span
-      class={`bs-tip bs-tip-up bs-tip-${props.align ?? "end"}`}
+      class={`bs-tip bs-tip-up bs-tip-${props.align ?? "end"}${props.metric ? " bs-metric" : ""}`}
       data-tip={props.tip}
-      style={{ ...cellStyle, color: props.color }}
+      style={{
+        ...cellStyle,
+        color: props.color,
+        "font-family": props.mono ? FONT.mono : undefined,
+      }}
     >
       <span style={iconSlot}>
         <Icon name={props.icon} size={12} />
       </span>
-      {props.children}
+      <span style={{ display: "inline-block", width: props.width }}>{props.children}</span>
     </span>
   );
 }
 
-const errBtnStyle = {
-  border: `1px solid transparent`,
+const errBtnStyle: JSX.CSSProperties = {
+  border: "1px solid transparent",
   "border-radius": R.xs,
   height: H.compact,
   padding: `0 ${S[2]}`,
@@ -292,11 +319,22 @@ const errBtnStyle = {
   ...T[11],
   cursor: "pointer",
   "font-weight": 600,
+  "font-variant-numeric": "tabular-nums",
   display: "inline-flex",
   "align-items": "center",
-} as const;
+};
 
-const popoverStyle = {
+/** The all-clear marker: a 6px green dot in place of the ⚠, so "nothing is
+ *  wrong" is a quiet statement rather than a warning glyph you have to read. */
+const okDotStyle: JSX.CSSProperties = {
+  width: "6px",
+  height: "6px",
+  "border-radius": R.full,
+  background: C.green,
+  opacity: 0.7,
+};
+
+const popoverStyle: JSX.CSSProperties = {
   position: "absolute",
   bottom: "26px",
   right: "0",
@@ -311,67 +349,66 @@ const popoverStyle = {
   "flex-direction": "column",
   "z-index": "50",
   overflow: "hidden",
-} as const;
+  animation: `bs-pop-up ${M.d2} ${M.easePop}`,
+};
 
-const popoverHeader = {
+const popoverHeader: JSX.CSSProperties = {
   display: "flex",
   "align-items": "center",
   "justify-content": "space-between",
-  padding: "8px 12px",
-  "border-bottom": `1px solid ${C.border}`,
-} as const;
+  gap: S[2],
+  padding: `${S[1.5]} ${S[3]}`,
+  "border-bottom": `1px solid ${C.borderSub}`,
+};
 
-const clearBtnStyle = {
-  background: C.bg3,
-  color: C.text,
-  border: `1px solid ${C.border}`,
-  "border-radius": R.sm,
-  padding: "2px 9px",
-  "font-size": "11px",
-  cursor: "pointer",
-} as const;
-
-const popoverList = {
+const popoverList: JSX.CSSProperties = {
   flex: 1,
   "overflow-y": "auto",
-  padding: "4px 0",
-} as const;
+  padding: `${S[1]} 0`,
+};
 
-const rowStyle = {
+/** Zebra banding (`.bs-log-row` in base.css) carries the row separation, so no
+ *  row draws a hairline of its own. */
+const rowStyle: JSX.CSSProperties = {
   display: "grid",
-  "grid-template-columns": "44px 60px 100px 1fr",
-  gap: "8px",
-  padding: "4px 12px",
-  "font-size": "11px",
+  "grid-template-columns": "48px 60px 100px 1fr",
+  gap: S[2],
+  padding: `${S[0.5]} ${S[3]}`,
+  ...T[11],
   "font-family": FONT.mono,
-  "border-bottom": `1px solid ${C.borderSub}`,
-  "align-items": "baseline",
-} as const;
+  "align-items": "center",
+};
 
-const levelTagStyle = {
-  "font-weight": 700,
-  "font-size": "10px",
-} as const;
+const levelTagStyle: JSX.CSSProperties = {
+  display: "inline-flex",
+  "align-items": "center",
+  "justify-content": "center",
+  height: "14px",
+  "border-radius": R.xs,
+  "font-weight": 600,
+  ...T[10],
+  "letter-spacing": "0.06em",
+};
 
-const tsStyle = {
+const tsStyle: JSX.CSSProperties = {
   color: C.text3,
-} as const;
+};
 
-const targetStyle = {
+const targetStyle: JSX.CSSProperties = {
   color: C.text2,
   overflow: "hidden",
   "text-overflow": "ellipsis",
   "white-space": "nowrap",
-} as const;
+};
 
-const msgStyle = {
+const msgStyle: JSX.CSSProperties = {
   color: C.text,
   "word-break": "break-word",
-} as const;
+};
 
-const emptyRowStyle = {
-  padding: "20px",
+const emptyRowStyle: JSX.CSSProperties = {
+  padding: S[5],
   "text-align": "center",
   color: C.text3,
-  "font-size": "12px",
-} as const;
+  ...T[12],
+};

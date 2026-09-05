@@ -17,6 +17,7 @@ import { Icon, type IconName } from "../icons";
 import { DialogFrame } from "./ui/DialogFrame";
 import { SettingsGroup, SettingsRow } from "./ui/SettingsGroup";
 import { EmptyState } from "./ui/EmptyState";
+import { Notice } from "./ui/Notice";
 import { general, updateGeneral } from "../stores/general";
 import {
   activeTabId,
@@ -566,6 +567,11 @@ interface BackupFile {
 function BackupPane() {
   const [includePasswords, setIncludePasswords] = createSignal(false);
   const [status, setStatus] = createSignal<{ kind: "ok" | "err"; msg: string } | null>(null);
+  // The native file input is a browser control we cannot style; it is hidden
+  // and driven by a real button instead. No drop zone: nothing behind this
+  // pane implements dropping, and a dashed rectangle that ignores a drop is
+  // worse than no rectangle.
+  let fileInput: HTMLInputElement | undefined;
 
   async function doExport() {
     setStatus(null);
@@ -689,6 +695,7 @@ function BackupPane() {
             Imported tabs appear after the next restart.
           </span>
           <input
+            ref={fileInput}
             type="file"
             accept=".json,application/json"
             onChange={(e) => {
@@ -698,23 +705,23 @@ function BackupPane() {
                 e.currentTarget.value = "";
               }
             }}
-            style={{ ...T[12], color: C.text2 }}
+            style={{ display: "none" }}
           />
+          <button
+            class="bs-btn"
+            onClick={() => fileInput?.click()}
+            style={button("secondary", "roomy")}
+          >
+            <Icon name="upload" size={14} />
+            Import backup…
+          </button>
         </SettingsRow>
       </SettingsGroup>
 
       <Show when={status()}>
         {(s) => (
-          <div
-            style={{
-              padding: `${S[2]} ${S[3]}`,
-              "border-radius": R.sm,
-              background: s().kind === "ok" ? C.greenBg : C.redBg,
-              color: s().kind === "ok" ? C.green : C.red,
-              ...T[12],
-            }}
-          >
-            {s().msg}
+          <div style={noticeWrapStyle}>
+            <Notice tone={s().kind === "ok" ? "success" : "error"}>{s().msg}</Notice>
           </div>
         )}
       </Show>
@@ -1223,6 +1230,12 @@ const sidebarItemStyle: JSX.CSSProperties = {
   "--btn-bg": "transparent",
   "--btn-fg": C.text2,
   "--btn-fg-hover": C.text,
+};
+
+/** Notice is a flush band; inside a pane stack it wants the card radius. */
+const noticeWrapStyle: JSX.CSSProperties = {
+  "border-radius": R.sm,
+  overflow: "hidden",
 };
 
 const paneStackStyle: JSX.CSSProperties = {

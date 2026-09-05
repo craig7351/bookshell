@@ -103,6 +103,29 @@ row is hovered or holds focus. Reordering is `arrow-up` / `arrow-down` ghost
 buttons, disabled at the ends — never a grip handle, because nothing behind
 these lists implements dragging.
 
+## The bottom dock
+
+`CommandBar` + `StatusFooter` are one 56px base, not two unrelated strips.
+
+The CommandBar is a **single 34px row that never wraps** — command buttons
+scroll horizontally instead, so adding a thirteenth button can never steal a
+terminal line. It is the one place in the app that hides its scrollbar
+(`.bs-dock-scroll`); a 24px right-edge mask (`.bs-dock-fade`, applied only
+while there is more to see) says "there is more" in its place, a vertical
+wheel scrolls it sideways, and the edit pencil is pinned outside the scroller.
+A command pill is `.bs-pill` at 26px: a user colour appears as a 6px dot plus
+a 35% `color-mix` border tint, never as coloured label text. Sending flashes
+the pill once (`bs-flash`, opacity only). A confirm is an **anchored popover**
+above the pill — `--bg-3`, `--r-lg`, `--sh-2`, no scrim — because confirming
+one button is not a modal moment.
+
+The StatusFooter is the sunken floor: `--bg-0` with a single `--line-sub` top
+edge. Every cell is `tabular-nums` and every system metric has a fixed value
+width, so a digit rolling over moves nothing. Metrics sit at `--text-4` and
+lift to `--text-3` while the pointer is on the footer (`.bs-metric`) — they
+are ambient, not a readout. Zero warnings is a 6px green dot and a `--text-4`
+count; only a non-zero count earns `--red` on `--red-fill`.
+
 ## Tooltips
 
 `class="bs-tip" data-tip="…"`, not `title=`. Dark bubble, 400ms delay, visible

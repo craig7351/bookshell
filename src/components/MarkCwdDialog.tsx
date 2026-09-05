@@ -1,8 +1,9 @@
 import { createSignal, onMount, Show, type JSX } from "solid-js";
 import { captureCwdViaPty, setTabCwd, tabs as allTabs } from "../stores/tabs";
 import { DialogFrame } from "./ui/DialogFrame";
+import { Notice } from "./ui/Notice";
 import { Icon } from "../icons";
-import { button, C, FONT, H, S, T } from "../theme";
+import { button, C, FONT, H, R, S, T } from "../theme";
 
 interface Props {
   tabId: string;
@@ -103,7 +104,11 @@ export function MarkCwdDialog(props: Props) {
         </button>
       </div>
       <Show when={detectError()}>
-        <div style={{ ...T[11], color: C.yellow, "margin-top": S[1.5] }}>{detectError()}</div>
+        {(msg) => (
+          <div style={{ "margin-top": S[1.5], "border-radius": R.sm, overflow: "hidden" }}>
+            <Notice tone="warn">{msg()}</Notice>
+          </div>
+        )}
       </Show>
       <Show when={tab()?.cwd}>
         <div style={{ ...T[11], color: C.text3, "margin-top": S[2] }}>

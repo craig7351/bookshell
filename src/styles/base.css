@@ -414,6 +414,50 @@ body.bs-dragging * {
   opacity: 1;
 }
 
+/* ------------------------------------------------------------ bottom dock */
+
+/* The CommandBar is a single-row strip: it never wraps, and it scrolls
+   horizontally instead. It is the one exception to the app-wide chunky
+   scrollbar rule — a 14px track under a 34px dock would eat the pills — so
+   the bar is hidden and a 24px right-edge mask says "there is more" instead.
+   The mask is only applied while there IS more (.bs-dock-fade), otherwise the
+   last pill would sit permanently half-faded. */
+.bs-dock-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-x: contain;
+}
+
+.bs-dock-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.bs-dock-fade {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+}
+
+/* ----------------------------------------------------------- status footer */
+
+/* System metrics are decoration until you look for them: they sit at --text-4
+   and lift a tier when the pointer is anywhere on the footer. Colour lives
+   here rather than inline so the lift is a single rule. */
+.bs-footer .bs-metric {
+  color: var(--text-4);
+  transition: color var(--dur-1) var(--ease);
+}
+
+.bs-footer:hover .bs-metric {
+  color: var(--text-3);
+}
+
+/* Diagnostics log: zebra banding instead of a hairline per row, so a long
+   list reads as a table rather than as 40 separators. */
+.bs-log-row:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
 /* ------------------------------------------------------------- scrollbars */
 
 /* Chunky, easy-to-grab scrollbars: wide track plus a visible thumb so the

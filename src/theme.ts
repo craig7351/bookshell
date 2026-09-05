@@ -181,6 +181,8 @@ export const C = {
   //   bg3 = elevated controls (inputs, pills) — sits ABOVE main content
   bg:          "var(--bg-2)",
   bg2:         "var(--bg-1)",
+  // The sunken floor: StatusFooter and the scrollbar track only.
+  bg0:         "var(--bg-0)",
   bg3:         "var(--bg-4)",
   bgHover:     "var(--fill-hover)",
   bgActive:    "var(--fill-active)",
