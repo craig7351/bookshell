@@ -46,13 +46,13 @@ const COLORS = [
 
 const ICONS = [
   { name: "None", value: null },
-  { name: "🤖 Robot", value: "🤖" },
-  { name: "🚀 Rocket", value: "🚀" },
-  { name: "🐧 Linux", value: "🐧" },
-  { name: "🔧 Tool", value: "🔧" },
-  { name: "📦 Box", value: "📦" },
-  { name: "⭐ Star", value: "⭐" },
-  { name: "🔥 Fire", value: "🔥" },
+  { name: "Robot", value: "🤖" },
+  { name: "Rocket", value: "🚀" },
+  { name: "Linux", value: "🐧" },
+  { name: "Tool", value: "🔧" },
+  { name: "Box", value: "📦" },
+  { name: "Star", value: "⭐" },
+  { name: "Fire", value: "🔥" },
 ];
 
 function shortCwd(p: string): string {
@@ -202,65 +202,72 @@ export function TabBar(props: Props) {
     setGroupMenu({ x: e.clientX, y: e.clientY, group });
   }
 
+  /** The colour picker, shared by the tab and group menus: a swatch per row,
+   *  a ✓ on the current one. "Default" is the ringed transparent dot. */
+  function colorSubmenu(current: string | null | undefined, apply: (v: string | null) => void): MenuItem[] {
+    return COLORS.map((c) => ({
+      label: c.name,
+      swatch: c.value ?? "transparent",
+      checked: current === c.value,
+      onClick: () => apply(c.value),
+    }));
+  }
+
   function buildMenu(tab: Tab): MenuItem[] {
     return [
-      { icon: "✎", label: "Rename (F2)", onClick: () => setRenamingId(tab.id) },
+      { icon: "pencil", label: "Rename", shortcut: "F2", onClick: () => setRenamingId(tab.id) },
       {
-        icon: "📍",
+        icon: "map-pin",
         label: tab.cwd ? "Edit cwd" : "Mark cwd…",
         sublabel: tab.cwd ? shortCwd(tab.cwd) : undefined,
         onClick: () => openMarkCwd(tab.id),
       },
       {
-        icon: "🤖",
+        icon: "bot",
         label: tab.passthrough ? "Disable passthrough" : "Enable passthrough",
+        checked: tab.passthrough,
         onClick: () => toggleTabPassthrough(tab.id),
       },
       {
-        icon: "🎨",
         label: "Color",
-        submenu: COLORS.map((c) => ({
-          label: c.name,
-          icon: tab.color === c.value ? "✓" : undefined,
-          onClick: () => setTabColor(tab.id, c.value),
-        })),
+        swatch: tab.color ?? "transparent",
+        submenu: colorSubmenu(tab.color, (v) => setTabColor(tab.id, v)),
       },
       {
-        icon: "★",
         label: "Icon",
+        icon: "image",
+        emoji: tab.icon ?? undefined,
+        // The one menu that keeps emoji: these ARE the user's content.
         submenu: ICONS.map((ic) => ({
           label: ic.name,
-          icon: tab.icon === ic.value ? "✓" : undefined,
+          emoji: ic.value ?? undefined,
+          checked: tab.icon === ic.value,
           onClick: () => setTabIcon(tab.id, ic.value),
         })),
       },
       ...(tab.groupId
-        ? [{ icon: "⏏", label: "Remove from group", onClick: () => removeTabFromGroup(tab.id) } as MenuItem]
+        ? [{ icon: "minus", label: "Remove from group", onClick: () => removeTabFromGroup(tab.id) } as MenuItem]
         : []),
       { separator: true, label: "" },
-      { icon: "🗑", label: "Close", danger: true, onClick: () => closeTab(tab.id) },
+      { icon: "x", label: "Close", danger: true, onClick: () => closeTab(tab.id) },
     ];
   }
 
   function buildGroupMenu(group: TabGroup): MenuItem[] {
     return [
-      { icon: "✎", label: "Rename group", onClick: () => setRenamingGroupId(group.id) },
+      { icon: "pencil", label: "Rename group", onClick: () => setRenamingGroupId(group.id) },
       {
-        icon: group.collapsed ? "▸" : "▾",
+        icon: group.collapsed ? "chevron-right" : "chevron-down",
         label: group.collapsed ? "Expand" : "Collapse",
         onClick: () => toggleGroupCollapsed(group.id),
       },
       {
-        icon: "🎨",
         label: "Color",
-        submenu: COLORS.map((c) => ({
-          label: c.name,
-          icon: group.color === c.value ? "✓" : undefined,
-          onClick: () => setGroupColor(group.id, c.value),
-        })),
+        swatch: group.color ?? "transparent",
+        submenu: colorSubmenu(group.color, (v) => setGroupColor(group.id, v)),
       },
       { separator: true, label: "" },
-      { icon: "⏏", label: "Ungroup", danger: true, onClick: () => ungroup(group.id) },
+      { icon: "minus", label: "Ungroup", danger: true, onClick: () => ungroup(group.id) },
     ];
   }
 

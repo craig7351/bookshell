@@ -152,6 +152,47 @@ output callback stamps a **plain variable**, a 250ms interval flips the signal,
 and only when the state actually changes — 4Hz, opacity only, cleared in
 `onCleanup` (xterm rule 6).
 
+## Menus
+
+`components/ContextMenu.tsx` is the only context menu. Its surface is the same
+floating recipe as every other popover — `--bg-3`, one `--line` hairline,
+`--r-lg`, `--sh-2` + `--hl-top` — and a row is a `.bs-menu-item` that sets
+only the `--btn-*` slots (hover `--fill-active`, press `--fill-selected`, and
+`--red-fill` on a `danger` row). A row has a 16px leading column that is
+reserved even when empty, so every label in a menu starts on the same x, and
+it holds exactly one of: an `Icon`, a 10px ringed colour swatch, or an emoji —
+the tab-icon picker being the one menu whose glyphs are the user's content.
+The trailing end carries, in order, a `<kbd>` shortcut (never spelled into the
+label), an `--accent` ✓ for the current value of a group, and the submenu
+chevron. `disabled` is `aria-disabled` and nothing else: the row still hovers.
+
+Placement is `ui/usePopoverPosition.ts` for every fixed popover: clamp inside
+an 8px margin, and where a caller supplies an opposite edge, **flip** to it
+rather than sliding — a menu opened near the bottom-right corner opens up and
+to the left of the cursor, and a submenu opens on the other side of its parent.
+The popover stays `visibility: hidden` until it has been measured, so the
+corrected position is the first one anyone sees. A submenu is fixed-positioned
+but stays a DOM child of its row, so the pointer can travel into it without the
+row losing `:hover`.
+
+## Rendered Markdown
+
+`.md-viewer` is the one place in the app that is *prose*, not chrome, and it is
+styled as a document: a 760px measure inside 28px/32px/56px margins, one
+neutral colour ramp for h1–h6 and body (`--text-1` over `--text-2`), and the
+only coloured text on the page is a link. Hierarchy is size and rule, not hue:
+h1 24px with a `--line` underline, h2 19px with `--line-sub`, h3 16px, h4 14px,
+h5/h6 12px uppercase.
+
+Code blocks are a `--bg-1` card with a `--line-sub` hairline, `--r-md`, 13px
+mono, and the language in the top-right corner as a `--text-4` `--t-11` tag
+(`pre[data-lang]::before`). Syntax colours come from `RAW.hljs` — pure hex,
+because the rules are built as a string — and **no stylesheet may be linked
+out of `node_modules`**: `index.html` loads `tokens.css` and `base.css` and
+nothing else. Sanitisation (DOMPurify) runs on every parse and is not
+negotiable; `data-*` and `class` survive it, which is what lets the mermaid
+placeholders and the language tag work.
+
 ## Tooltips
 
 `class="bs-tip" data-tip="…"`, not `title=`. Dark bubble, 400ms delay, visible

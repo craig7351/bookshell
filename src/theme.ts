@@ -106,13 +106,32 @@ const HIGHLIGHT = [
   TOKENS.purple,
 ] as const;
 
-/** The raw palette. Flat colour tokens plus the three JS-only colour tables:
- *  `ansi` / `ansiLegacy` (xterm) and `highlight` (Terminal swatches). */
+/** highlight.js syntax palette (Xcode-Dark flavoured), injected as real CSS by
+ *  MarkdownViewer. It lives here, not in a node_modules stylesheet: shipping
+ *  github-dark.css would pull a second colour system into the app and could
+ *  only be linked from index.html, which no token can reach.
+ *
+ *  Deliberately NOT part of TOKENS — these are prose syntax colours, not app
+ *  surface tokens, and nothing outside the Markdown viewer may use them. */
+const HLJS = {
+  keyword:  "#fc5fa3",
+  string:   "#fc6a5d",
+  number:   "#d0bf69",
+  comment:  "#7f8c98",
+  type:     "#5dd8ff",
+  function: "#67b7a4",
+  attr:     "#a167e6",
+} as const;
+
+/** The raw palette. Flat colour tokens plus the four JS-only colour tables:
+ *  `ansi` / `ansiLegacy` (xterm), `highlight` (Terminal swatches) and `hljs`
+ *  (Markdown code blocks). */
 export const RAW = {
   ...TOKENS,
   ansi: ansiMacosDark,
   ansiLegacy: ansiMacosDarkLegacy,
   highlight: HIGHLIGHT,
+  hljs: HLJS,
 } as const;
 
 /** Maps a flat RAW key onto its CSS custom property name. */
