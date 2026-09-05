@@ -3,7 +3,7 @@ import { createMemo, createSignal, For, Show } from "solid-js";
 const [tabBarWidth, setTabBarWidth] = createSignal(190);
 const MIN_W = 140;
 const MAX_W = 400;
-import { C } from "../theme";
+import { C, R } from "../theme";
 import {
   activeTabId,
   closeTab,
@@ -434,7 +434,7 @@ export function TabBar(props: Props) {
           }}
           title={group.collapsed ? "Click to expand" : "Click to collapse"}
         >
-          <span style={{ "font-size": "9px", width: "10px", "flex-shrink": 0, color: C.text2 }}>
+          <span style={{ "font-size": "10px", width: "10px", "flex-shrink": 0, color: C.text2 }}>
             {group.collapsed ? "▸" : "▾"}
           </span>
           <Show
@@ -560,7 +560,7 @@ const tabStyle = {
   // is ~14px. Previously each tab was ~42px which capped the visible list to
   // ~10 entries on a typical 800px-tall window.
   padding: "3px 8px 3px 6px",
-  "border-radius": "5px",
+  "border-radius": R.sm,
   cursor: "grab",
   "font-size": "13px",
   "border-left": "3px solid transparent",
@@ -573,7 +573,7 @@ const groupHeaderStyle = {
   "align-items": "center",
   gap: "5px",
   padding: "3px 8px",
-  "border-radius": "5px",
+  "border-radius": R.sm,
   cursor: "pointer",
   "user-select": "none",
   transition: "background 0.08s",
@@ -614,7 +614,7 @@ const closeBtnStyle = {
   color: C.text3,
   border: "none",
   cursor: "pointer",
-  "font-size": "14px",
+  "font-size": "13px",
   padding: "0 3px",
   "line-height": "1",
   "flex-shrink": 0,

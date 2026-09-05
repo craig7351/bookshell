@@ -6,7 +6,7 @@ import {
   filesShowHidden,
   toggleFilesShowHidden,
 } from "../stores/files";
-import { C } from "../theme";
+import { C, FONT, R } from "../theme";
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|bmp|ico|svg|avif|tiff?)$/i;
 
@@ -348,9 +348,9 @@ const pathInputStyle = {
   background: C.bg,
   color: C.text,
   border: `1px solid ${C.border}`,
-  "border-radius": "5px",
+  "border-radius": R.sm,
   padding: "3px 8px",
-  "font-family": "monospace",
+  "font-family": FONT.mono,
   "font-size": "12px",
   outline: "none",
 } as const;
@@ -360,7 +360,7 @@ const navBtn = (disabled: boolean) =>
     background: "transparent",
     color: disabled ? C.text3 : C.text2,
     border: `1px solid ${C.border}`,
-    "border-radius": "5px",
+    "border-radius": R.sm,
     padding: "2px 8px",
     "font-size": "12px",
     cursor: disabled ? "default" : "pointer",
@@ -389,7 +389,7 @@ const rowDownloadBtn = {
   color: C.accent,
   border: "none",
   cursor: "pointer",
-  "font-size": "14px",
+  "font-size": "13px",
   padding: "0 2px",
   "line-height": "1",
   "flex-shrink": 0,

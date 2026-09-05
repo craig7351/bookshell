@@ -1,6 +1,6 @@
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
-import { C } from "../theme";
+import { C, FONT, R, SH } from "../theme";
 
 export interface MenuItem {
   label: string;
@@ -53,14 +53,13 @@ export function ContextMenu(props: Props) {
           position: "fixed",
           left: `${props.x}px`,
           top: `${props.y}px`,
-          background: "rgba(38,38,40,0.95)",
-          "backdrop-filter": "blur(20px) saturate(180%)",
+          background: C.overlay,
           border: `1px solid ${C.border}`,
-          "border-radius": "10px",
+          "border-radius": R.lg,
           padding: "5px 0",
           "min-width": "200px",
           "max-width": "320px",
-          "box-shadow": "0 8px 32px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.3)",
+          "box-shadow": `${SH.e2}, ${SH.hlTop}`,
           "z-index": "200",
           "font-size": "13px",
           color: C.text,
@@ -109,13 +108,12 @@ export function ContextMenu(props: Props) {
                       position: "absolute",
                       left: "100%",
                       top: "0",
-                      background: "rgba(38,38,40,0.95)",
-                      "backdrop-filter": "blur(20px) saturate(180%)",
+                      background: C.overlay,
                       border: `1px solid ${C.border}`,
-                      "border-radius": "10px",
+                      "border-radius": R.lg,
                       padding: "5px 0",
                       "min-width": "130px",
-                      "box-shadow": "0 8px 32px rgba(0,0,0,0.55)",
+                      "box-shadow": `${SH.e2}, ${SH.hlTop}`,
                     }}
                   >
                     <For each={item.submenu}>
@@ -177,7 +175,7 @@ const labelStyle = {
 const sublabelStyle = {
   "font-size": "11px",
   color: C.text3,
-  "font-family": "monospace",
+  "font-family": FONT.mono,
   "line-height": "1.3",
   overflow: "hidden",
   "text-overflow": "ellipsis",

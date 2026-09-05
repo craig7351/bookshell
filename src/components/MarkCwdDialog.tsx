@@ -1,7 +1,7 @@
 import { createSignal, onMount, Show } from "solid-js";
 import { captureCwdViaPty, setTabCwd, tabs as allTabs } from "../stores/tabs";
 import { CloseX } from "./CloseX";
-import { C, overlayStyle as baseOverlay, dialogStyle as baseDialog, inputStyle, btnPrimary, btnSecondary, btnDanger } from "../theme";
+import { C, FONT, overlayStyle as baseOverlay, dialogStyle as baseDialog, inputStyle, btnPrimary, btnSecondary, btnDanger } from "../theme";
 
 interface Props {
   tabId: string;
@@ -84,7 +84,7 @@ export function MarkCwdDialog(props: Props) {
           </button>
         </div>
         <Show when={detectError()}>
-          <div style={{ "font-size": "12px", color: "#f9e2af", "margin-top": "6px" }}>{detectError()}</div>
+          <div style={{ "font-size": "12px", color: C.yellow, "margin-top": "6px" }}>{detectError()}</div>
         </Show>
         <Show when={tab()?.cwd}>
           <div style={{ "font-size": "12px", opacity: 0.6, "margin-top": "8px" }}>
@@ -114,6 +114,6 @@ const dialog = {
 const input = {
   ...inputStyle,
   width: "100%",
-  "font-family": "monospace",
+  "font-family": FONT.mono,
   "box-sizing": "border-box",
 } as const;

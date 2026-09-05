@@ -3,7 +3,7 @@ import { api, type SystemStats } from "../ipc/api";
 import { activeTab, activeTabId, tabs } from "../stores/tabs";
 import { clearDiag, diagEntries } from "../stores/diagnostics";
 import { gitState } from "../stores/git";
-import { C } from "../theme";
+import { C, FONT, R, SH } from "../theme";
 
 /** Middle-truncate a path so the most distinctive parts (root + leaf) stay
  *  visible. Example: `/home/craig/projects/bookshell/src` (max 36)
@@ -139,7 +139,7 @@ export function StatusFooter() {
           title={hasErrors() ? `${errCount()} log records` : "No recent errors"}
         >
           ⚠ {errCount()}
-          <span style={{ "font-size": "9px", "margin-left": "4px", opacity: 0.7 }}>
+          <span style={{ "font-size": "10px", "margin-left": "4px", opacity: 0.7 }}>
             {open() ? "▾" : "▴"}
           </span>
         </button>
@@ -246,11 +246,10 @@ const popoverStyle = {
   width: "560px",
   "max-width": "90vw",
   "max-height": "320px",
-  background: "rgba(28,28,30,0.97)",
-  "backdrop-filter": "blur(40px) saturate(180%)",
+  background: C.overlay,
   border: `1px solid ${C.border}`,
-  "border-radius": "10px",
-  "box-shadow": "0 12px 32px rgba(0,0,0,0.6)",
+  "border-radius": R.lg,
+  "box-shadow": `${SH.e2}, ${SH.hlTop}`,
   display: "flex",
   "flex-direction": "column",
   "z-index": "50",
@@ -269,7 +268,7 @@ const clearBtnStyle = {
   background: C.bg3,
   color: C.text,
   border: `1px solid ${C.border}`,
-  "border-radius": "5px",
+  "border-radius": R.sm,
   padding: "2px 9px",
   "font-size": "11px",
   cursor: "pointer",
@@ -287,7 +286,7 @@ const rowStyle = {
   gap: "8px",
   padding: "4px 12px",
   "font-size": "11px",
-  "font-family": "ui-monospace, monospace",
+  "font-family": FONT.mono,
   "border-bottom": `1px solid ${C.borderSub}`,
   "align-items": "baseline",
 } as const;

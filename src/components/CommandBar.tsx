@@ -2,7 +2,7 @@ import { createSignal, For, Show } from "solid-js";
 import { api, type CommandButton } from "../ipc/api";
 import { buttons, loadButtons } from "../stores/buttons";
 import { activeTab, bumpFit } from "../stores/tabs";
-import { C, overlayStyle, dialogStyle, btnPrimary, btnSecondary, btnDanger } from "../theme";
+import { C, FONT, R, overlayStyle, dialogStyle, btnPrimary, btnSecondary, btnDanger } from "../theme";
 
 interface Props {
   onEdit: () => void;
@@ -91,8 +91,8 @@ export function CommandBar(props: Props) {
                   background: C.bg,
                   border: `1px solid ${C.borderSub}`,
                   padding: "8px 10px",
-                  "border-radius": "6px",
-                  "font-family": "monospace",
+                  "border-radius": R.sm,
+                  "font-family": FONT.mono,
                   "font-size": "12px",
                   color: C.text2,
                   "margin-bottom": "16px",
@@ -134,7 +134,7 @@ const barStyle = {
 
 const btnStyle = {
   border: `1px solid ${C.border}`,
-  "border-radius": "5px",
+  "border-radius": R.sm,
   padding: "3px 10px",
   "font-size": "12px",
   cursor: "pointer",
@@ -159,7 +159,7 @@ const editBtnStyle = {
   background: "transparent",
   color: C.text3,
   border: `1px solid ${C.borderSub}`,
-  "border-radius": "5px",
+  "border-radius": R.sm,
   padding: "3px 9px",
   cursor: "pointer",
   "font-size": "12px",

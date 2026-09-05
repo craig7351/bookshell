@@ -9,6 +9,34 @@
  * slots instead (inline sets --btn-bg; the class reads var(--btn-bg, …)).
  */
 
+/* ------------------------------------------------------------ bundled font */
+
+/* "BS Mono" is OUR OWN alias for JetBrains Mono (OFL, shipped by
+   @fontsource/jetbrains-mono). The package's own CSS is deliberately NOT
+   imported: it declares the family as "JetBrains Mono", the same name the
+   xterm fontFamily stacks used to carry, and a webfont swapping in
+   asynchronously after term.open() + fit() re-measures the cell grid and
+   garbles the screen. Behind a private alias the terminal can never resolve
+   it — FONT.term lists system-installed families only — while UI chrome
+   (FONT.mono / --font-mono) picks it up on machines with no mono font
+   installed. Latin 400/700 only, ~60KB total. */
+
+@font-face {
+  font-family: "BS Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "BS Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff2") format("woff2");
+}
+
 /* ---------------------------------------------------------------- basics */
 
 :root {

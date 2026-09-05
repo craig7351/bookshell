@@ -1,6 +1,18 @@
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { CloseX } from "./CloseX";
 import {
+  C,
+  FONT,
+  R,
+  RAW,
+  btnDanger,
+  btnPrimary,
+  btnSecondary,
+  dialogStyle as baseDialog,
+  inputStyle,
+  overlayStyle as baseOverlay,
+} from "../theme";
+import {
   buttons,
   loadButtons,
   moveButton,
@@ -67,8 +79,8 @@ export function ButtonEditor(props: Props) {
       <div style={dialog}>
         <CloseX onClose={props.onClose} />
         <div style={{ display: "flex", "align-items": "center", "margin-bottom": "12px", "padding-right": "32px" }}>
-          <strong style={{ "font-size": "16px" }}>Command Buttons</strong>
-          <button onClick={startNew} style={{ ...btn, "margin-left": "auto" }}>+ New</button>
+          <strong style={{ "font-size": "15px" }}>Command Buttons</strong>
+          <button onClick={startNew} style={{ ...btnPrimary, "margin-left": "auto" }}>+ New</button>
         </div>
 
         <Show when={!editing()}>
@@ -99,14 +111,14 @@ export function ButtonEditor(props: Props) {
                       {b.icon ? `${b.icon} ` : ""}
                       {b.label}
                     </div>
-                    <div style={{ "font-size": "12px", opacity: 0.7, "font-family": "monospace" }}>
+                    <div style={{ "font-size": "12px", opacity: 0.7, "font-family": FONT.mono }}>
                       {b.command.length > 60 ? b.command.slice(0, 60) + "…" : b.command}
                       {b.send_enter && <span style={{ opacity: 0.5 }}> ⏎</span>}
-                      {b.confirm && <span style={{ color: "#fab387", "margin-left": "6px" }}>⚠ confirm</span>}
+                      {b.confirm && <span style={{ color: C.orange, "margin-left": "6px" }}>⚠ confirm</span>}
                     </div>
                   </div>
-                  <button onClick={() => startEdit(b)} style={{ ...btn, background: "#45475a" }}>Edit</button>
-                  <button onClick={() => removeButton(b.id)} style={{ ...btn, background: "#f38ba8" }}>×</button>
+                  <button onClick={() => startEdit(b)} style={btnSecondary}>Edit</button>
+                  <button onClick={() => removeButton(b.id)} style={btnDanger}>×</button>
                 </div>
               )}
             </For>
@@ -122,7 +134,7 @@ export function ButtonEditor(props: Props) {
               <input style={input} placeholder="optional, e.g. 🚀" value={c().icon ?? ""} onInput={(e) => setEditing({ ...c(), icon: e.currentTarget.value || null })} />
               <label>Command</label>
               <textarea
-                style={{ ...input, "font-family": "monospace", "min-height": "60px", resize: "vertical" }}
+                style={{ ...input, "font-family": FONT.mono, "min-height": "60px", resize: "vertical" }}
                 value={c().command}
                 onInput={(e) => setEditing({ ...c(), command: e.currentTarget.value })}
                 placeholder="e.g. git status&#10;Multi-line commands send each line."
@@ -142,10 +154,10 @@ export function ButtonEditor(props: Props) {
                 <input style={input} placeholder="Are you sure?" value={c().confirm_text ?? ""} onInput={(e) => setEditing({ ...c(), confirm_text: e.currentTarget.value || null })} />
               </Show>
               <label>Color (hex)</label>
-              <input style={input} placeholder="#cba6f7" value={c().color ?? ""} onInput={(e) => setEditing({ ...c(), color: e.currentTarget.value || null })} />
+              <input style={input} placeholder={RAW.orange} value={c().color ?? ""} onInput={(e) => setEditing({ ...c(), color: e.currentTarget.value || null })} />
               <div style={{ "grid-column": "1 / -1", display: "flex", "justify-content": "flex-end", gap: "8px", "margin-top": "8px" }}>
-                <button onClick={() => setEditing(null)} style={{ ...btn, background: "#45475a" }}>Cancel</button>
-                <button onClick={save} style={btn}>Save</button>
+                <button onClick={() => setEditing(null)} style={btnSecondary}>Cancel</button>
+                <button onClick={save} style={btnPrimary}>Save</button>
               </div>
             </div>
           )}
@@ -155,23 +167,10 @@ export function ButtonEditor(props: Props) {
   );
 }
 
-const overlay = {
-  position: "fixed",
-  inset: "0",
-  background: "rgba(0,0,0,0.5)",
-  display: "flex",
-  "align-items": "center",
-  "justify-content": "center",
-  "z-index": "100",
-} as const;
+const overlay = baseOverlay;
 
 const dialog = {
-  position: "relative",
-  background: "#1e1e2e",
-  color: "#cdd6f4",
-  border: "1px solid #45475a",
-  "border-radius": "6px",
-  padding: "16px",
+  ...baseDialog,
   "min-width": "520px",
   "max-width": "720px",
   "max-height": "85vh",
@@ -183,30 +182,15 @@ const row = {
   gap: "8px",
   "align-items": "center",
   padding: "8px",
-  "border-radius": "4px",
-  background: "#181825",
+  "border-radius": R.sm,
+  background: C.bg,
   "margin-bottom": "6px",
 } as const;
 
 const input = {
-  background: "#313244",
-  color: "#cdd6f4",
-  border: "1px solid #45475a",
-  padding: "6px 8px",
-  "border-radius": "4px",
-  "font-size": "13px",
-  outline: "none",
-} as const;
-
-const btn = {
-  background: "#89b4fa",
-  color: "#1e1e2e",
-  border: "none",
-  padding: "5px 12px",
-  "border-radius": "4px",
-  "font-size": "13px",
-  cursor: "pointer",
-  "font-weight": 600,
+  ...inputStyle,
+  width: "100%",
+  "box-sizing": "border-box",
 } as const;
 
 const reorderCol = {
@@ -218,11 +202,11 @@ const reorderCol = {
 
 const arrowBtn = {
   background: "transparent",
-  color: "#cdd6f4",
-  border: "1px solid #45475a",
-  "border-radius": "4px",
+  color: C.text2,
+  border: `1px solid ${C.border}`,
+  "border-radius": R.xs,
   padding: "1px 6px",
-  "font-size": "9px",
+  "font-size": "10px",
   "line-height": "1",
   cursor: "pointer",
 } as const;

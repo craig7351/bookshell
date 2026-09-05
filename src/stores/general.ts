@@ -1,7 +1,13 @@
 import { createSignal } from "solid-js";
 import { api, type GeneralSettings } from "../ipc/api";
 
-const defaults: GeneralSettings = { scrollback: 10000, font_size: 14, side_font_size: 14, git_poll_secs: 5 };
+const defaults: GeneralSettings = {
+  scrollback: 10000,
+  font_size: 14,
+  side_font_size: 14,
+  git_poll_secs: 5,
+  terminal_palette: "macos-dark",
+};
 
 const [general, setGeneral] = createSignal<GeneralSettings>(defaults);
 export { general };

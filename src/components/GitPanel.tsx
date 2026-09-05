@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
-import { C } from "../theme";
+import { C, FONT, R, SH } from "../theme";
 import {
   closeViewer,
   gitHeight,
@@ -314,11 +314,11 @@ function StatusRow(p: { tabId: string; e: GitStatusEntry }) {
       onMouseOut={(ev) => (ev.currentTarget.style.background = "transparent")}
       title={isUntracked ? "Untracked — click to view" : "Click to view diff"}
     >
-      <span style={{ "font-family": "monospace", width: "20px", "text-align": "center" }}>
+      <span style={{ "font-family": FONT.mono, width: "20px", "text-align": "center" }}>
         <span style={{ color: stagedColor(e.staged) }}>{stagedChar}</span>
         <span style={{ color: workColor(e.work) }}>{workChar}</span>
       </span>
-      <span style={{ flex: 1, "min-width": 0, overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap", "font-family": "monospace" }}>
+      <span style={{ flex: 1, "min-width": 0, overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap", "font-family": FONT.mono }}>
         {e.orig_path && <span style={{ opacity: 0.5 }}>{e.orig_path} → </span>}
         {e.path}
       </span>
@@ -332,7 +332,7 @@ function stagedColor(c: string): string {
     case "A": return C.accent;
     case "D": return C.red;
     case "R": return C.purple;
-    case "C": return "#5ac8fa";
+    case "C": return C.cyan;
     case "U": return C.orange;
     case "?": return C.text3;
     default:  return C.text;
@@ -355,7 +355,7 @@ function LogSection(p: { tabId: string; log: any[] }) {
         <div style={{ padding: "6px 12px", "font-size": "10px", "letter-spacing": "0.06em", color: C.text3, "font-weight": 600 }}>
           LOG ({p.log.length})
         </div>
-        <div style={{ "font-family": "monospace", "font-size": "12px" }}>
+        <div style={{ "font-family": FONT.mono, "font-size": "12px" }}>
           <For each={p.log}>
             {(line) => <LogRow tabId={p.tabId} line={line} />}
           </For>
@@ -430,14 +430,13 @@ function ViewerModal() {
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "rgba(28,28,30,0.98)",
-          "backdrop-filter": "blur(40px) saturate(180%)",
+          background: C.overlay,
           color: C.text,
           border: `1px solid ${C.border}`,
-          "box-shadow": "0 24px 64px rgba(0,0,0,0.8)",
+          "box-shadow": `${SH.e3}, ${SH.hlTop}`,
           width: maximized() ? "98vw" : "min(1100px, 94vw)",
           height: maximized() ? "96vh" : "min(760px, 90vh)",
-          "border-radius": maximized() ? "10px" : "14px",
+          "border-radius": maximized() ? R.lg : R.xl,
           transition: "width 0.18s ease, height 0.18s ease",
           display: "flex",
           "flex-direction": "column",
@@ -504,7 +503,7 @@ function DiffViewerContent() {
       {(d) => (
         <>
           <div style={modalHeader}>
-            <strong style={{ "font-size": "14px", "font-family": "monospace" }}>{d().title}</strong>
+            <strong style={{ "font-size": "13px", "font-family": FONT.mono }}>{d().title}</strong>
             <Show when={isMd()}>
               <div style={{ "margin-left": "auto", display: "flex", gap: "4px" }}>
                 <TabBtn active={!showPreview()} onClick={() => setShowPreview(false)}>Diff</TabBtn>
@@ -550,7 +549,7 @@ function CommitViewerContent() {
       {(c) => (
         <>
           <div style={modalHeader}>
-            <span style={{ color: C.orange, "font-family": "monospace", "font-weight": 600 }}>
+            <span style={{ color: C.orange, "font-family": FONT.mono, "font-weight": 600 }}>
               {c().detail?.hash_short ?? c().rev.slice(0, 7)}
             </span>
             <span style={{ flex: 1, overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
@@ -564,7 +563,7 @@ function CommitViewerContent() {
             </Show>
           </div>
           <Show when={c().error}>
-            <div style={{ padding: "12px 16px", color: "#f38ba8" }}>{c().error}</div>
+            <div style={{ padding: "12px 16px", color: C.red }}>{c().error}</div>
           </Show>
           <Show when={c().loading}>
             <div style={{ padding: "20px", opacity: 0.6 }}>Loading commit…</div>
@@ -651,7 +650,7 @@ function CommitFileList(p: { detail: any; selected: string | null; onSelect: (p:
               "align-items": "center",
               gap: "8px",
               "font-size": "12px",
-              "font-family": "monospace",
+              "font-family": FONT.mono,
               "white-space": "nowrap",
             }}
             onMouseOver={(ev) => {
@@ -680,7 +679,7 @@ function commitFileColor(status: string): string {
   if (status.startsWith("M")) return C.green;
   if (status.startsWith("D")) return C.red;
   if (status.startsWith("R")) return C.purple;
-  if (status.startsWith("C")) return "#5ac8fa";
+  if (status.startsWith("C")) return C.cyan;
   return C.text;
 }
 
@@ -718,7 +717,7 @@ const diffScrollArea = {
   flex: 1,
   "overflow-y": "auto",
   padding: "12px 16px",
-  "font-family": "monospace",
+  "font-family": FONT.mono,
   "font-size": "12px",
   "line-height": 1.5,
   "white-space": "pre",
@@ -772,15 +771,14 @@ function DiffBody(p: { body: string }) {
 const diffFileHeader = {
   color: C.orange,
   "font-weight": 600,
-  background: "rgba(255,159,10,0.08)",
+  background: C.overlay,
   padding: "6px 8px",
   "margin-top": "10px",
   "border-top": `1px solid ${C.border}`,
-  "border-radius": "4px 4px 0 0",
+  "border-radius": R.xs,
   position: "sticky",
   top: "-12px",
   "z-index": 1,
-  "backdrop-filter": "blur(6px)",
 } as const;
 
 const diffFilePath = {
@@ -790,11 +788,11 @@ const diffFilePath = {
 } as const;
 
 const diffHunkHeader = {
-  color: "#5ac8fa",
-  background: "rgba(90,200,250,0.08)",
+  color: C.cyan,
+  background: C.cyanBg,
   padding: "3px 8px",
   "margin-top": "6px",
-  "border-radius": "3px",
+  "border-radius": R.xs,
 } as const;
 
 const diffAdd = {

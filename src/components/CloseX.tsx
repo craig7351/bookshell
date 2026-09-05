@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { C } from "../theme";
+import { C, R } from "../theme";
 
 interface Props {
   onClose: () => void;
@@ -25,11 +25,11 @@ export function CloseX(props: Props) {
         background: hover() ? C.redBg : "transparent",
         color: hover() ? C.red : C.text3,
         border: "none",
-        "font-size": "16px",
+        "font-size": "15px",
         "line-height": "1",
         cursor: "pointer",
         padding: "3px 8px",
-        "border-radius": "6px",
+        "border-radius": R.sm,
         "z-index": "10",
         transition: "background 0.15s, color 0.15s",
         ...(props.style ?? {}),

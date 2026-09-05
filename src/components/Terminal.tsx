@@ -1,6 +1,6 @@
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore } from "solid-js/store";
-import { C, xtermTheme } from "../theme";
+import { C, FONT, R, RAW, SH, xtermThemeFor } from "../theme";
 import { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { FitAddon } from "@xterm/addon-fit";
@@ -47,7 +47,7 @@ export function TerminalView(props: Props) {
   const [showHighlight, setShowHighlight] = createSignal(false);
 
   interface HighlightSlot { color: string; keyword: string; }
-  const DEFAULT_HIGHLIGHT_COLORS = ["#ff453a", "#ffd60a", "#30d158", "#0a84ff", "#bf5af2"];
+  const DEFAULT_HIGHLIGHT_COLORS = RAW.highlight;
   const [slots, setSlots] = createStore<HighlightSlot[]>(
     DEFAULT_HIGHLIGHT_COLORS.map((color) => ({ color, keyword: "" })),
   );
@@ -109,10 +109,10 @@ export function TerminalView(props: Props) {
     return {
       ...opts(),
       decorations: {
-        matchBackground: "#515b78",
-        matchOverviewRuler: "#f9e2af",
-        activeMatchBackground: "#a06c2c",
-        activeMatchColorOverviewRuler: "#fab387",
+        matchBackground: "rgba(255,214,10,0.30)",
+        matchOverviewRuler: RAW.yellow,
+        activeMatchBackground: "rgba(255,159,10,0.85)",
+        activeMatchColorOverviewRuler: RAW.orange,
       },
     };
   }
@@ -160,11 +160,11 @@ export function TerminalView(props: Props) {
   onMount(() => {
     term = new Terminal({
       cursorBlink: true,
-      fontFamily: '"JetBrains Mono", "Cascadia Code", Consolas, monospace',
+      fontFamily: FONT.term,
       fontSize: general().font_size,
       scrollback: general().scrollback,
       allowProposedApi: true,
-      theme: xtermTheme,
+      theme: xtermThemeFor(general().terminal_palette),
     });
     fit = new FitAddon();
     search = new SearchAddon();
@@ -463,6 +463,7 @@ export function TerminalView(props: Props) {
     if (!term) return;
     term.options.scrollback = general().scrollback;
     term.options.fontSize = general().font_size;
+    term.options.theme = xtermThemeFor(general().terminal_palette);
     queueMicrotask(() => fit?.fit());
   });
 
@@ -497,12 +498,12 @@ export function TerminalView(props: Props) {
       <Show when={showReconnectPanel()}>
         <div style={reconnectOverlay}>
           <div style={reconnectCard}>
-            <div style={{ "font-size": "14px", "margin-bottom": "8px" }}>
-              <span style={{ color: "#f9e2af" }}>●</span>{" "}
+            <div style={{ "font-size": "13px", "margin-bottom": "8px" }}>
+              <span style={{ color: C.yellow }}>●</span>{" "}
               {props.tab.status === "error" ? "Connection error" : "Disconnected"}
             </div>
             <Show when={props.tab.errorMessage}>
-              <div style={{ "font-size": "12px", opacity: 0.7, "margin-bottom": "12px", "font-family": "monospace" }}>
+              <div style={{ "font-size": "12px", opacity: 0.7, "margin-bottom": "12px", "font-family": FONT.mono }}>
                 {props.tab.errorMessage}
               </div>
             </Show>
@@ -732,12 +733,11 @@ const searchBarStyle = {
   display: "flex",
   "align-items": "center",
   gap: "4px",
-  background: "rgba(28,28,30,0.92)",
-  "backdrop-filter": "blur(16px) saturate(160%)",
+  background: C.overlay,
   border: `1px solid ${C.border}`,
-  "border-radius": "10px",
+  "border-radius": R.lg,
   padding: "5px 8px",
-  "box-shadow": "0 8px 24px rgba(0,0,0,0.5)",
+  "box-shadow": `${SH.e2}, ${SH.hlTop}`,
   "z-index": "10",
 } as const;
 
@@ -745,12 +745,11 @@ const highlightPanelStyle = {
   position: "absolute",
   top: "58px",
   right: "14px",
-  background: "rgba(28,28,30,0.95)",
-  "backdrop-filter": "blur(16px) saturate(160%)",
+  background: C.overlay,
   border: `1px solid ${C.border}`,
-  "border-radius": "10px",
+  "border-radius": R.lg,
   padding: "10px 12px",
-  "box-shadow": "0 8px 24px rgba(0,0,0,0.5)",
+  "box-shadow": `${SH.e2}, ${SH.hlTop}`,
   "z-index": "10",
   width: "260px",
 } as const;
@@ -760,7 +759,7 @@ const searchInputStyle = {
   color: C.text,
   border: `1px solid ${C.border}`,
   padding: "4px 8px",
-  "border-radius": "6px",
+  "border-radius": R.sm,
   "font-size": "13px",
   outline: "none",
   width: "200px",
@@ -771,11 +770,11 @@ const toggleBtn = (active: boolean | undefined) =>
     background: active ? C.accentBg : "transparent",
     color: active ? C.accent : C.text2,
     border: `1px solid ${active ? C.accentBdr : C.border}`,
-    "border-radius": "5px",
+    "border-radius": R.sm,
     padding: "2px 6px",
     "font-size": "11px",
     cursor: "pointer",
-    "font-family": "monospace",
+    "font-family": FONT.mono,
     "min-width": "26px",
   }) as const;
 
@@ -783,7 +782,7 @@ const navBtn = {
   background: "transparent",
   color: C.text2,
   border: `1px solid ${C.border}`,
-  "border-radius": "5px",
+  "border-radius": R.sm,
   padding: "2px 8px",
   "font-size": "12px",
   cursor: "pointer",
@@ -795,17 +794,15 @@ const reconnectOverlay = {
   display: "flex",
   "align-items": "center",
   "justify-content": "center",
-  background: "rgba(0,0,0,0.6)",
-  "backdrop-filter": "blur(8px)",
+  background: C.scrimTerm,
   "z-index": "5",
 } as const;
 
 const reconnectCard = {
-  background: "rgba(30,30,32,0.97)",
-  "backdrop-filter": "blur(40px) saturate(180%)",
+  background: C.overlay,
   border: `1px solid ${C.border}`,
-  "border-radius": "14px",
-  "box-shadow": "0 24px 64px rgba(0,0,0,0.75)",
+  "border-radius": R.xl,
+  "box-shadow": `${SH.e3}, ${SH.hlTop}`,
   padding: "24px 28px",
   "min-width": "320px",
   "max-width": "480px",
@@ -818,7 +815,7 @@ const pwInput = {
   color: C.text,
   border: `1px solid ${C.border}`,
   padding: "7px 10px",
-  "border-radius": "8px",
+  "border-radius": R.md,
   "font-size": "13px",
   outline: "none",
 } as const;
@@ -829,8 +826,7 @@ const dropOverlayStyle = {
   display: "flex",
   "align-items": "center",
   "justify-content": "center",
-  background: "rgba(0,0,0,0.55)",
-  "backdrop-filter": "blur(4px)",
+  background: C.scrimDrop,
   "z-index": "11",
   "pointer-events": "none",
 } as const;
@@ -838,9 +834,9 @@ const dropOverlayStyle = {
 const dropCardStyle = {
   padding: "20px 36px",
   border: "2px dashed",
-  "border-radius": "12px",
-  background: "rgba(30,30,32,0.85)",
-  "font-size": "14px",
+  "border-radius": R.lg,
+  background: C.overlay,
+  "font-size": "13px",
   "font-weight": 500,
 } as const;
 
@@ -860,7 +856,7 @@ const primaryBtn = {
   color: "#fff",
   border: "none",
   padding: "7px 18px",
-  "border-radius": "8px",
+  "border-radius": R.md,
   "font-size": "13px",
   cursor: "pointer",
   "font-weight": 600,

@@ -1,7 +1,7 @@
 import { createResource, createSignal, For, onMount, Show, type JSX } from "solid-js";
 import { getVersion } from "@tauri-apps/api/app";
 import { api, type Connection, type CommandButton, type TabState } from "../ipc/api";
-import { C, overlayStyle as baseOverlay, inputStyle, btnPrimary, btnSecondary, btnDanger } from "../theme";
+import { C, FONT, R, RAW, SH, overlayStyle as baseOverlay, inputStyle, btnPrimary, btnSecondary, btnDanger } from "../theme";
 import { CloseX } from "./CloseX";
 import { general, updateGeneral } from "../stores/general";
 import {
@@ -83,7 +83,7 @@ export function SettingsDialog(props: Props) {
         </div>
         <div style={content}>
           <div style={{ display: "flex", "align-items": "center", "margin-bottom": "12px", "padding-right": "32px" }}>
-            <strong style={{ "font-size": "16px" }}>
+            <strong style={{ "font-size": "15px" }}>
               {categories.find((c) => c.id === active())?.label}
             </strong>
           </div>
@@ -219,10 +219,10 @@ function Kbd(p: { label: string }) {
     <kbd style={{
       display: "inline-block",
       padding: "2px 7px",
-      background: "rgba(255,255,255,0.07)",
-      border: `1px solid rgba(255,255,255,0.18)`,
-      "border-radius": "5px",
-      "font-family": "monospace",
+      background: C.bgHover,
+      border: `1px solid ${C.border}`,
+      "border-radius": R.xs,
+      "font-family": FONT.mono,
       "font-size": "11px",
       "line-height": "1.6",
       "white-space": "nowrap",
@@ -237,10 +237,10 @@ function BindingPill(p: { binding: Binding; onRemove: () => void }) {
       "align-items": "center",
       gap: "4px",
       padding: "2px 4px 2px 8px",
-      background: "rgba(255,255,255,0.07)",
-      border: `1px solid rgba(255,255,255,0.18)`,
-      "border-radius": "6px",
-      "font-family": "monospace",
+      background: C.bgHover,
+      border: `1px solid ${C.border}`,
+      "border-radius": R.sm,
+      "font-family": FONT.mono,
       "font-size": "11px",
     }}>
       <span>{formatBinding(p.binding)}</span>
@@ -251,7 +251,7 @@ function BindingPill(p: { binding: Binding; onRemove: () => void }) {
           all: "unset",
           cursor: "pointer",
           padding: "0 4px",
-          "border-radius": "3px",
+          "border-radius": R.xs,
           color: C.text3,
           "font-size": "13px",
           "line-height": "1",
@@ -849,7 +849,7 @@ function ButtonsPane() {
                     {b.icon ? `${b.icon} ` : ""}
                     {b.label}
                   </div>
-                  <div style={{ "font-size": "12px", opacity: 0.7, "font-family": "monospace" }}>
+                  <div style={{ "font-size": "12px", opacity: 0.7, "font-family": FONT.mono }}>
                     {b.command.length > 80 ? b.command.slice(0, 80) + "…" : b.command}
                     {b.send_enter && <span style={{ opacity: 0.5 }}> ⏎</span>}
                     {b.confirm && <span style={{ color: C.orange, "margin-left": "6px" }}>⚠ confirm</span>}
@@ -872,7 +872,7 @@ function ButtonsPane() {
             <input style={input} placeholder="optional" value={c().icon ?? ""} onInput={(e) => setEditing({ ...c(), icon: e.currentTarget.value || null })} />
             <label>Command</label>
             <textarea
-              style={{ ...input, "font-family": "monospace", "min-height": "60px", resize: "vertical" }}
+              style={{ ...input, "font-family": FONT.mono, "min-height": "60px", resize: "vertical" }}
               value={c().command}
               onInput={(e) => setEditing({ ...c(), command: e.currentTarget.value })}
             />
@@ -891,7 +891,7 @@ function ButtonsPane() {
               <input style={input} value={c().confirm_text ?? ""} onInput={(e) => setEditing({ ...c(), confirm_text: e.currentTarget.value || null })} />
             </Show>
             <label>Color (hex)</label>
-            <input style={input} placeholder="#cba6f7" value={c().color ?? ""} onInput={(e) => setEditing({ ...c(), color: e.currentTarget.value || null })} />
+            <input style={input} placeholder={RAW.orange} value={c().color ?? ""} onInput={(e) => setEditing({ ...c(), color: e.currentTarget.value || null })} />
             <div style={{ "grid-column": "1 / -1", display: "flex", "justify-content": "flex-end", gap: "8px", "margin-top": "8px" }}>
               <button onClick={() => setEditing(null)} style={btnSecondary}>Cancel</button>
               <button onClick={save} style={btnPrimary}>Save</button>
@@ -911,12 +911,11 @@ const overlay = baseOverlay;
 
 const dialog = {
   position: "relative",
-  background: "rgba(28,28,30,0.97)",
-  "backdrop-filter": "blur(40px) saturate(180%)",
+  background: C.overlay,
   color: C.text,
   border: `1px solid ${C.border}`,
-  "border-radius": "14px",
-  "box-shadow": "0 24px 64px rgba(0,0,0,0.75)",
+  "border-radius": R.xl,
+  "box-shadow": `${SH.e3}, ${SH.hlTop}`,
   display: "flex",
   width: "800px",
   "max-width": "92vw",
@@ -941,7 +940,7 @@ const sidebarItem = {
   "align-items": "center",
   gap: "8px",
   padding: "7px 10px",
-  "border-radius": "7px",
+  "border-radius": R.sm,
   cursor: "pointer",
   "font-size": "13px",
   "user-select": "none",

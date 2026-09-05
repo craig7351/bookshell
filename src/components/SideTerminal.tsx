@@ -1,5 +1,5 @@
 import { createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner, Show } from "solid-js";
-import { C, xtermTheme } from "../theme";
+import { C, FONT, xtermThemeFor } from "../theme";
 import { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { FitAddon } from "@xterm/addon-fit";
@@ -189,11 +189,11 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string }) {
     const owner = getOwner();
     term = new Terminal({
       cursorBlink: true,
-      fontFamily: '"JetBrains Mono", "Cascadia Code", Consolas, monospace',
+      fontFamily: FONT.term,
       fontSize: general().side_font_size,
       scrollback: general().scrollback,
       allowProposedApi: true,
-      theme: xtermTheme,
+      theme: xtermThemeFor(general().terminal_palette),
     });
     fit = new FitAddon();
     term.loadAddon(fit);
@@ -311,6 +311,7 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string }) {
         if (!term) return;
         term.options.scrollback = general().scrollback;
         term.options.fontSize = general().side_font_size;
+        term.options.theme = xtermThemeFor(general().terminal_palette);
         queueMicrotask(() => fit?.fit());
       });
 

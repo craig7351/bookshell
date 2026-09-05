@@ -300,6 +300,8 @@ export interface GeneralSettings {
   font_size: number;
   side_font_size: number;
   git_poll_secs: number;
+  /** xterm ANSI palette id: "macos-dark" (default) or "legacy". */
+  terminal_palette?: string | null;
 }
 
 export interface CommandButton {

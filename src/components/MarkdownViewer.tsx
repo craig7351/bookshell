@@ -3,7 +3,7 @@ import { marked, type Renderer } from "marked";
 import mermaid from "mermaid";
 import hljs from "highlight.js";
 import DOMPurify from "dompurify";
-import { C, RAW } from "../theme";
+import { C, FONT, RAW } from "../theme";
 import { api } from "../ipc/api";
 
 mermaid.initialize({
@@ -64,7 +64,7 @@ if (typeof document !== "undefined" && !document.getElementById(MD_VIEWER_STYLE_
       border-radius: 4px;
       padding: 0.15em 0.4em;
       font-size: 0.88em;
-      font-family: "SF Mono", "JetBrains Mono", "Cascadia Code", monospace;
+      font-family: ${FONT.mono};
       color: ${C.cyan};
     }
     .md-viewer pre {
@@ -77,7 +77,7 @@ if (typeof document !== "undefined" && !document.getElementById(MD_VIEWER_STYLE_
     .md-viewer pre code.hljs {
       border-radius: 8px;
       font-size: 0.85em;
-      font-family: "SF Mono", "JetBrains Mono", "Cascadia Code", monospace;
+      font-family: ${FONT.mono};
       padding: 14px 16px;
     }
     /* inline code styling must not apply inside code blocks */

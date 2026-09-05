@@ -18,8 +18,13 @@
  * :root at boot (see main.tsx) and is the hook future theming will use.
  */
 
-/** Pure colour values. No var() may ever appear in here. */
-export const RAW = {
+import { ansiMacosDark } from "./themes/macos-dark";
+import { ansiMacosDarkLegacy } from "./themes/macos-dark-legacy";
+
+/** Pure colour values. No var() may ever appear in here.
+ *  This is the flat part of RAW — every key here maps 1:1 onto a CSS custom
+ *  property (see TOKEN_NAMES) and is written to :root by applyTokens. */
+const TOKENS = {
   // Surfaces
   bg0: "#0e0e10",
   bg1: "#141416",
@@ -80,8 +85,28 @@ export const RAW = {
   tlGreen: "#28c840",
 } as const;
 
-/** Maps a RAW key onto its CSS custom property name. */
-const TOKEN_NAMES: Record<keyof typeof RAW, string> = {
+/** Terminal keyword-highlight swatches (Terminal.tsx). Must stay pure hex:
+ *  the values are concatenated with an alpha suffix (`color + "70"`) and fed
+ *  to <input type="color">, neither of which understands a var(). */
+const HIGHLIGHT = [
+  TOKENS.red,
+  TOKENS.yellow,
+  TOKENS.green,
+  TOKENS.accent,
+  TOKENS.purple,
+] as const;
+
+/** The raw palette. Flat colour tokens plus the three JS-only colour tables:
+ *  `ansi` / `ansiLegacy` (xterm) and `highlight` (Terminal swatches). */
+export const RAW = {
+  ...TOKENS,
+  ansi: ansiMacosDark,
+  ansiLegacy: ansiMacosDarkLegacy,
+  highlight: HIGHLIGHT,
+} as const;
+
+/** Maps a flat RAW key onto its CSS custom property name. */
+const TOKEN_NAMES: Record<keyof typeof TOKENS, string> = {
   bg0: "--bg-0",
   bg1: "--bg-1",
   bg2: "--bg-2",
@@ -132,10 +157,10 @@ const TOKEN_NAMES: Record<keyof typeof RAW, string> = {
  * before the app renders. tokens.css already carries identical literals, so
  * this is idempotent today and becomes the swap point for future theming.
  */
-export function applyTokens(palette: Partial<Record<keyof typeof RAW, string>> = RAW): void {
+export function applyTokens(palette: Partial<Record<keyof typeof TOKENS, string>> = RAW): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  for (const key of Object.keys(TOKEN_NAMES) as (keyof typeof RAW)[]) {
+  for (const key of Object.keys(TOKEN_NAMES) as (keyof typeof TOKENS)[]) {
     const value = palette[key];
     if (value) root.style.setProperty(TOKEN_NAMES[key], value);
   }
@@ -169,6 +194,7 @@ export const C = {
   accentBg:    "var(--accent-fill)",
   accentBdr:   "var(--accent-line)",
   cyan:        "var(--cyan)",
+  cyanBg:      "var(--cyan-fill)",
   green:       "var(--green)",
   greenBg:     "var(--green-fill)",
   red:         "var(--red)",
@@ -404,18 +430,24 @@ export function input(size: CtrlSize = "roomy") {
   };
 }
 
-/** xterm.js theme. Reads RAW because xterm parses these as real colours.
- *  background MUST equal the host element background (RAW.bg2, opaque). */
-export const xtermTheme = {
-  background:          RAW.bg2,
-  foreground:          RAW.text1,
-  cursor:              RAW.text1,
-  cursorAccent:        RAW.bg2,
-  selectionBackground: "rgba(10,132,255,0.3)",
-  black:   "#000000",  red:     RAW.red,    green: RAW.green, yellow: RAW.yellow,
-  blue:    RAW.accent, magenta: RAW.purple, cyan:  RAW.cyan,  white:  "#ebebf5",
-  brightBlack:   "#636366", brightRed:     "#ff6961",
-  brightGreen:   "#34c759", brightYellow:  RAW.yellow,
-  brightBlue:    "#409cff", brightMagenta: "#da8fff",
-  brightCyan:    "#70d7ff", brightWhite:   "#ffffff",
-} as const;
+/** Terminal palette ids accepted by GeneralSettings.terminal_palette. */
+export type TerminalPalette = "macos-dark" | "legacy";
+
+/** xterm.js theme. Reads RAW because xterm parses these as real colours —
+ *  a "var(--…)" string here renders as transparent, so never pass C.
+ *  `background` MUST equal the host element background (RAW.bg2, opaque):
+ *  a mismatch shows up as a seam around the terminal card. */
+export function xtermThemeFor(palette?: string | null) {
+  const ansi = palette === "legacy" ? RAW.ansiLegacy : RAW.ansi;
+  return {
+    background:   RAW.bg2,
+    foreground:   RAW.text1,
+    cursor:       RAW.text1,
+    cursorAccent: RAW.bg2,
+    ...ansi,
+  };
+}
+
+/** Default terminal theme. Kept as a named export so anything that does not
+ *  care about the user's palette choice keeps compiling. */
+export const xtermTheme = xtermThemeFor("macos-dark");

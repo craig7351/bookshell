@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { C, overlayStyle as baseOverlay, dialogStyle as baseDialog, inputStyle, btnPrimary, btnSecondary, btnDanger } from "../theme";
+import { C, R, overlayStyle as baseOverlay, dialogStyle as baseDialog, inputStyle, btnPrimary, btnSecondary, btnDanger } from "../theme";
 import { CloseX } from "./CloseX";
 import {
   connections,
@@ -118,7 +118,7 @@ export function ConnectionDialog(props: Props) {
       <div ref={dialogRef} tabindex="-1" style={{ ...dialogStyle, outline: "none" }}>
         <CloseX onClose={props.onClose} />
         <div style={{ display: "flex", "align-items": "center", "margin-bottom": "12px", "padding-right": "32px" }}>
-          <strong style={{ "font-size": "16px" }}>Connections</strong>
+          <strong style={{ "font-size": "15px" }}>Connections</strong>
           <button onClick={startNew} style={{ ...btnPrimary, "margin-left": "auto" }}>+ New</button>
         </div>
 
@@ -293,9 +293,9 @@ const arrowBtn = {
   background: "transparent",
   color: C.text2,
   border: `1px solid ${C.border}`,
-  "border-radius": "4px",
+  "border-radius": R.xs,
   padding: "1px 6px",
-  "font-size": "9px",
+  "font-size": "10px",
   "line-height": "1",
   cursor: "pointer",
 } as const;
