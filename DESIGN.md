@@ -80,6 +80,29 @@ SolidJS render callback. Its two number gutters are `--text-3` (they are
 information, not decoration) and the `+`/`-` marker is its own
 `user-select: none` column, so copying a diff yields code that compiles.
 
+## Dialogs
+
+Every modal is `components/ui/DialogFrame.tsx`: an optional full-height
+sidebar, then a 48px header (`--t-15`/600 title, one 22x22 ✕), a `flex: 1`
+body that scrolls at 16px/20px, and an optional footer with a `--line-sub`
+top edge. The frame itself never scrolls (`max-height: 85vh` +
+`overflow: hidden`), so a long list moves under a title and a footer that
+stay put. `role="dialog"` + `aria-modal`, `--r-xl`, `--sh-3` + `--hl-top`,
+`bs-pop-in`. `Escape` closes a dialog, and a sub-state (an open edit form)
+gets first refusal on that key before the dialog itself does.
+
+Inside Settings, a pane is `SettingsGroup` (uppercase section label over one
+`--bg-4` card at `--r-md`) filled with `SettingsRow`s. The divider between
+rows is `.bs-settings-group > * + *` in base.css, never an inline
+`border-top`, so the first row never doubles up with the card's own edge.
+
+A list row in a dialog is the whole click target (`.bs-row`, `role="option"`
+or `role="button"`, `tabindex="0"`); its Edit / Delete / reorder buttons live
+in a `.bs-row-actions` wrapper and are invisible and click-through until the
+row is hovered or holds focus. Reordering is `arrow-up` / `arrow-down` ghost
+buttons, disabled at the ends — never a grip handle, because nothing behind
+these lists implements dragging.
+
 ## Tooltips
 
 `class="bs-tip" data-tip="…"`, not `title=`. Dark bubble, 400ms delay, visible

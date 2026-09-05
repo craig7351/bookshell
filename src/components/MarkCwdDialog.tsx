@@ -1,7 +1,8 @@
-import { createSignal, onMount, Show } from "solid-js";
+import { createSignal, onMount, Show, type JSX } from "solid-js";
 import { captureCwdViaPty, setTabCwd, tabs as allTabs } from "../stores/tabs";
-import { CloseX } from "./CloseX";
-import { C, FONT, overlayStyle as baseOverlay, dialogStyle as baseDialog, inputStyle, btnPrimary, btnSecondary, btnDanger } from "../theme";
+import { DialogFrame } from "./ui/DialogFrame";
+import { Icon } from "../icons";
+import { button, C, FONT, H, S, T } from "../theme";
 
 interface Props {
   tabId: string;
@@ -55,65 +56,70 @@ export function MarkCwdDialog(props: Props) {
   }
 
   return (
-    <div style={overlay} onClick={props.onClose}>
-      <div style={dialog} onClick={(e) => e.stopPropagation()}>
-        <strong style={{ "font-size": "15px", "padding-right": "32px", display: "block" }}>📍 Mark working directory</strong>
-        <div style={{ "font-size": "12px", opacity: 0.7, "margin": "8px 0 12px" }}>
-          BOOKSHELL will run <code>cd '&lt;path&gt;'</code> on this tab right after the next reconnect.
-        </div>
-        <div style={{ display: "flex", gap: "6px", "align-items": "center" }}>
-          <input
-            autofocus
-            value={value()}
-            onInput={(e) => setValue(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") save();
-              if (e.key === "Escape") props.onClose();
-            }}
-            placeholder="/home/jason/projects/foo"
-            style={{ ...input, flex: 1 }}
-            disabled={detecting()}
-          />
-          <button
-            onClick={autoDetect}
-            disabled={!canAutoDetect() || detecting()}
-            title={canAutoDetect() ? "Run pwd on the remote and fill the path" : "Tab must be connected"}
-            style={{ ...btnSecondary, "white-space": "nowrap" }}
-          >
-            {detecting() ? "Detecting…" : "🔍 Auto-detect"}
-          </button>
-        </div>
-        <Show when={detectError()}>
-          <div style={{ "font-size": "12px", color: C.yellow, "margin-top": "6px" }}>{detectError()}</div>
-        </Show>
-        <Show when={tab()?.cwd}>
-          <div style={{ "font-size": "12px", opacity: 0.6, "margin-top": "8px" }}>
-            Currently saved: <code>{tab()!.cwd}</code>
-          </div>
-        </Show>
-        <div style={{ display: "flex", gap: "8px", "justify-content": "flex-end", "margin-top": "16px" }}>
+    <DialogFrame
+      title="Mark working directory"
+      onClose={props.onClose}
+      width="520px"
+      overlay={{ "z-index": "150" }}
+      footer={
+        <>
           <Show when={tab()?.cwd}>
-            <button onClick={clear} style={btnDanger}>Clear</button>
+            <button class="bs-btn" onClick={clear} style={{ ...button("ghost", "roomy"), color: C.red }}>
+              Clear
+            </button>
           </Show>
-          <button onClick={save} style={btnPrimary}>Save</button>
-        </div>
-        <CloseX onClose={props.onClose} />
+          <button class="bs-btn" onClick={props.onClose} style={button("secondary", "roomy")}>Cancel</button>
+          <button class="bs-btn" onClick={save} style={button("primary", "roomy")}>Save</button>
+        </>
+      }
+    >
+      <div style={{ ...T[12], color: C.text2, "margin-bottom": S[3] }}>
+        BOOKSHELL will run <code style={{ "font-family": FONT.mono }}>cd '&lt;path&gt;'</code> on this
+        tab right after the next reconnect.
       </div>
-    </div>
+      <div style={{ display: "flex", gap: S[1.5], "align-items": "center" }}>
+        <input
+          class="bs-input"
+          autofocus
+          value={value()}
+          onInput={(e) => setValue(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") save();
+            if (e.key === "Escape") props.onClose();
+          }}
+          placeholder="/home/jason/projects/foo"
+          style={{ ...inputStyle, flex: 1 }}
+          disabled={detecting()}
+        />
+        <button
+          class="bs-btn"
+          onClick={autoDetect}
+          disabled={!canAutoDetect() || detecting()}
+          title={canAutoDetect() ? "Run pwd on the remote and fill the path" : "Tab must be connected"}
+          style={button("secondary", "roomy")}
+        >
+          <Icon name="search" size={12} stroke={2} class={detecting() ? "bs-spin" : undefined} />
+          {detecting() ? "Detecting…" : "Auto-detect"}
+        </button>
+      </div>
+      <Show when={detectError()}>
+        <div style={{ ...T[11], color: C.yellow, "margin-top": S[1.5] }}>{detectError()}</div>
+      </Show>
+      <Show when={tab()?.cwd}>
+        <div style={{ ...T[11], color: C.text3, "margin-top": S[2] }}>
+          Currently saved: <code style={{ "font-family": FONT.mono, color: C.text2 }}>{tab()!.cwd}</code>
+        </div>
+      </Show>
+    </DialogFrame>
   );
 }
 
-const overlay = { ...baseOverlay, "z-index": "150" } as const;
-
-const dialog = {
-  ...baseDialog,
-  "min-width": "440px",
-  "max-width": "560px",
-} as const;
-
-const input = {
-  ...inputStyle,
-  width: "100%",
+/** Geometry only — `.bs-input` owns surface, border and focus ring. */
+const inputStyle: JSX.CSSProperties = {
+  height: H.roomy,
+  padding: `0 ${S[2]}`,
+  ...T[13],
   "font-family": FONT.mono,
+  width: "100%",
   "box-sizing": "border-box",
-} as const;
+};

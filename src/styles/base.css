@@ -340,6 +340,33 @@ body.bs-dragging * {
   animation: bs-fade-in var(--dur-2) var(--ease) 400ms both;
 }
 
+/* ---------------------------------------------------------------- dialogs */
+
+/* One card per settings section. The divider between rows lives here rather
+   than inline so the FIRST row never doubles up with the card's own edge —
+   a pane can add or remove a row without re-deciding who draws the line. */
+.bs-settings-group > * + * {
+  border-top: 1px solid var(--line-sub);
+}
+
+/* Row actions that only exist on approach: a list row shows its Edit / Delete
+   / reorder buttons on hover or when anything inside it holds focus, so an
+   idle list is text and nothing else. Hidden actions also stop taking clicks
+   (an invisible ✕ must not delete anything) but stay Tab-reachable, which is
+   what brings :focus-within into play in the first place. */
+.bs-row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  flex-shrink: 0;
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+.bs-row:not(:hover):not(:focus-within) .bs-row-actions {
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* ------------------------------------------------------------- side list */
 
 /* A scrolling list that dissolves into the chrome at both ends instead of

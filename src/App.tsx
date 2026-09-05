@@ -1,5 +1,4 @@
 import { createEffect, createSignal, For, onMount, Show } from "solid-js";
-import { ButtonEditor } from "./components/ButtonEditor";
 import { CommandBar } from "./components/CommandBar";
 import { ConnectionDialog } from "./components/ConnectionDialog";
 import { FileBrowser } from "./components/FileBrowser";
@@ -9,7 +8,7 @@ import { StatusFooter } from "./components/StatusFooter";
 import { initDiagnostics } from "./stores/diagnostics";
 import { isSideTermOpen, toggleSideTerm } from "./stores/sideTerm";
 import { MarkCwdDialog } from "./components/MarkCwdDialog";
-import { SettingsDialog } from "./components/SettingsDialog";
+import { SettingsDialog, type PaneId } from "./components/SettingsDialog";
 import { TabBar } from "./components/TabBar";
 import { TerminalView } from "./components/Terminal";
 import { filesOpen, filesWidth, setFilesWidth, toggleFiles } from "./stores/files";
@@ -58,8 +57,10 @@ const LAYOUT_ICON: Record<string, IconName> = {
 
 export default function App() {
   const [showDialog, setShowDialog] = createSignal(false);
-  const [showButtonEditor, setShowButtonEditor] = createSignal(false);
-  const [showSettings, setShowSettings] = createSignal(false);
+  // One Settings dialog, opened on a named pane. The CommandBar pencil used
+  // to open a separate ButtonEditor modal; it now lands on the same dialog's
+  // "buttons" pane, which is where reordering lives.
+  const [settingsPane, setSettingsPane] = createSignal<PaneId | null>(null);
   const [colDragging, setColDragging] = createSignal(false);
   const [filesColDragging, setFilesColDragging] = createSignal(false);
 
@@ -429,7 +430,7 @@ export default function App() {
           <button
             class="bs-iconbtn bs-tip"
             data-tip="Settings"
-            onClick={() => setShowSettings(true)}
+            onClick={() => setSettingsPane("general")}
             style={iconBtn}
           >
             <Icon name="settings" size={14} />
@@ -547,7 +548,7 @@ export default function App() {
               </div>
             </Show>
           </div>
-          <CommandBar onEdit={() => setShowButtonEditor(true)} />
+          <CommandBar onEdit={() => setSettingsPane("buttons")} />
         </div>
       </div>
 
@@ -559,11 +560,10 @@ export default function App() {
           onClose={() => setShowDialog(false)}
         />
       </Show>
-      <Show when={showButtonEditor()}>
-        <ButtonEditor onClose={() => setShowButtonEditor(false)} />
-      </Show>
-      <Show when={showSettings()}>
-        <SettingsDialog onClose={() => setShowSettings(false)} />
+      <Show when={settingsPane()}>
+        {(pane) => (
+          <SettingsDialog initialPane={pane()} onClose={() => setSettingsPane(null)} />
+        )}
       </Show>
       <Show when={markCwdTabId()}>
         {(id) => <MarkCwdDialog tabId={id()} onClose={closeMarkCwd} />}
