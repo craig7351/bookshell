@@ -1,5 +1,6 @@
 import { createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner, Show } from "solid-js";
 import { C, FONT, xtermThemeFor } from "../theme";
+import { PanelHeader, panelCard } from "./ui/PanelHeader";
 import { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { FitAddon } from "@xterm/addon-fit";
@@ -19,7 +20,6 @@ import {
 } from "../stores/sideTerm";
 import { layoutMode, layoutVertical } from "../stores/layout";
 import { activeTabId } from "../stores/tabs";
-import { CloseX } from "./CloseX";
 
 export function SideTerminalPanel() {
   const tabId = () => activeTabId() ?? "";
@@ -62,46 +62,27 @@ export function SideTerminalPanel() {
     return (
       <>
         <div
+          class="bs-resize"
+          data-axis="row"
+          data-dragging={dragging() ? "true" : "false"}
           onMouseDown={startDrag}
-          style={{
-            height: "4px",
-            cursor: "row-resize",
-            background: dragging() ? C.accent : "transparent",
-            "border-top": `1px solid ${C.border}`,
-            "flex-shrink": "0",
-            transition: "background 0.15s",
-          }}
+          style={gapHandle}
           title="Drag to resize"
         />
         <div
           style={{
+            ...panelCard(C.bg2),
             height: `${sideTermHeight()}px`,
-            width: "100%",
-            background: C.bg,
-            display: "flex",
-            "flex-direction": "column",
             "flex-shrink": "0",
-            overflow: "hidden",
-            color: C.text,
-            "font-size": "13px",
             position: "relative",
           }}
         >
-          <div style={{ padding: "7px 10px", "border-bottom": `1px solid ${C.border}`, display: "flex", "align-items": "center", gap: "6px", "padding-right": "40px", "flex-shrink": 0 }}>
-            <strong style={{ "font-size": "12px", color: C.text2 }}>📟 Side terminal</strong>
-            <Show when={entry()?.opening}>
-              <span style={{ "font-size": "11px", color: C.text3 }}>opening…</span>
-            </Show>
-            <Show when={entry()?.error}>
-              <span style={{ color: C.red, "font-size": "11px" }}>{entry()!.error}</span>
-            </Show>
-          </div>
+          <SideHeader tabId={tabId()} opening={!!entry()?.opening} error={entry()?.error} />
           <div style={{ flex: 1, "min-height": 0, position: "relative" }}>
             <Show when={sid()} keyed>
               {(s) => <SideTerminalView sessionId={s} parentTabId={tabId()} />}
             </Show>
           </div>
-          <CloseX onClose={() => closeSideTerm(tabId())} title="Close side terminal" />
         </div>
       </>
     );
@@ -110,29 +91,20 @@ export function SideTerminalPanel() {
   return (
     <>
       <div
+        class="bs-resize"
+        data-axis={layoutVertical() ? "row" : "col"}
+        data-dragging={dragging() ? "true" : "false"}
         onMouseDown={startDrag}
-        style={layoutVertical() ? {
-          height: "4px",
-          cursor: "row-resize",
-          background: dragging() ? C.accent : "transparent",
-          "border-bottom": `1px solid ${C.border}`,
-          "flex-shrink": "0",
-          transition: "background 0.15s",
-        } : {
-          width: "4px",
-          cursor: "col-resize",
-          background: dragging() ? C.accent : "transparent",
-          "border-right": `1px solid ${C.border}`,
-          "flex-shrink": "0",
-          transition: "background 0.15s",
-        }}
+        style={layoutVertical() ? rowHandle : colHandle}
         title="Drag to resize"
       />
       <div
         style={layoutVertical() ? {
           height: `${sideTermHeight()}px`,
           width: "100%",
-          background: C.bg,
+          // Chrome is --bg-1; only the xterm host inside is --bg-2, which is
+          // what xtermTheme.background is bound to.
+          background: C.bg2,
           "border-top": `1px solid ${C.border}`,
           display: "flex",
           "flex-direction": "column",
@@ -143,7 +115,7 @@ export function SideTerminalPanel() {
           position: "relative",
         } : {
           width: `${sideTermWidth()}px`,
-          background: C.bg,
+          background: C.bg2,
           "border-left": `1px solid ${C.border}`,
           display: "flex",
           "flex-direction": "column",
@@ -154,25 +126,59 @@ export function SideTerminalPanel() {
           position: "relative",
         }}
       >
-        <div style={{ padding: "7px 10px", "border-bottom": `1px solid ${C.border}`, display: "flex", "align-items": "center", gap: "6px", "padding-right": "40px", "flex-shrink": 0 }}>
-          <strong style={{ "font-size": "12px", color: C.text2 }}>📟 Side terminal</strong>
-          <Show when={entry()?.opening}>
-            <span style={{ "font-size": "11px", color: C.text3 }}>opening…</span>
-          </Show>
-          <Show when={entry()?.error}>
-            <span style={{ color: C.red, "font-size": "11px" }}>{entry()!.error}</span>
-          </Show>
-        </div>
+        <SideHeader tabId={tabId()} opening={!!entry()?.opening} error={entry()?.error} />
         <div style={{ flex: 1, "min-height": 0, position: "relative" }}>
           <Show when={sid()} keyed>
             {(s) => <SideTerminalView sessionId={s} parentTabId={tabId()} />}
           </Show>
         </div>
-        <CloseX onClose={() => closeSideTerm(tabId())} title="Close side terminal" />
       </div>
     </>
   );
 }
+
+/** One header for both layouts. The status text lives in PanelHeader's meta
+ *  slot so the title never shifts when a session is opening or errors. */
+function SideHeader(p: { tabId: string; opening: boolean; error?: string }) {
+  return (
+    <PanelHeader
+      icon="terminal"
+      title="Side terminal"
+      meta={
+        <Show when={p.error} fallback={p.opening ? "opening…" : undefined}>
+          <span style={{ color: C.red }}>{p.error}</span>
+        </Show>
+      }
+      onClose={() => closeSideTerm(p.tabId)}
+      closeTitle="Close side terminal"
+    />
+  );
+}
+
+/** Grab strips. No border of their own: the panel card already draws one, and
+ *  a handle hairline next to it is the double line this phase removes. */
+
+/** Right-split: an 8px strip pulled into the 6px gap between two cards with a
+ *  -4px margin, so it costs no layout height and the gap stays exactly 6px —
+ *  the same trick App.tsx uses for the column handle, rotated. */
+const gapHandle = {
+  height: "8px",
+  margin: "-4px 0",
+  cursor: "row-resize",
+  "z-index": "5",
+} as const;
+
+const rowHandle = {
+  height: "4px",
+  cursor: "row-resize",
+  "z-index": "5",
+} as const;
+
+const colHandle = {
+  width: "4px",
+  cursor: "col-resize",
+  "z-index": "5",
+} as const;
 
 function SideTerminalView(props: { sessionId: string; parentTabId: string }) {
   let host!: HTMLDivElement;

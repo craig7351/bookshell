@@ -34,7 +34,7 @@ export function sideTermSessionId(parentTabId: string): string | null {
 
 export const sideTermWidth = () => state.width;
 export function setSideTermWidth(w: number) {
-  setState("width", Math.max(240, Math.min(900, w)));
+  setState("width", Math.max(260, Math.min(900, w)));
 }
 
 export const sideTermHeight = () => state.height;

@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, onMount, Show } from "solid-js";
+import { createMemo, createSignal, For, onMount, Show, type JSX } from "solid-js";
 import { api, type DirListing, type FsEntry } from "../ipc/api";
 import { activeTab, captureCwd } from "../stores/tabs";
 import {
@@ -6,14 +6,23 @@ import {
   filesShowHidden,
   toggleFilesShowHidden,
 } from "../stores/files";
-import { C, FONT, R } from "../theme";
+import { layoutMode } from "../stores/layout";
+import { C, FONT, H, R, S, T } from "../theme";
+import { Icon, type IconName } from "../icons";
+import { PanelHeader, panelCard } from "./ui/PanelHeader";
+import { Notice } from "./ui/Notice";
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|bmp|ico|svg|avif|tiff?)$/i;
+const CODE_RE =
+  /\.(ts|tsx|js|jsx|mjs|cjs|json|ya?ml|toml|ini|conf|rs|py|go|java|c|h|cc|cpp|hpp|cs|rb|php|sh|bash|zsh|fish|ps1|bat|sql|css|scss|less|html?|xml|vue|svelte|swift|kt|lua|pl|r|dart|zig)$/i;
 
-function iconFor(e: FsEntry): string {
-  if (e.is_dir) return "📁";
-  if (IMG_RE.test(e.name)) return "🖼️";
-  return "📄";
+/** File type -> glyph + semantic colour. Four buckets only: a directory reads
+ *  cyan, source code accent, images purple, everything else recedes. */
+function iconFor(e: FsEntry): { name: IconName; color: string } {
+  if (e.is_dir) return { name: "folder", color: C.cyan };
+  if (IMG_RE.test(e.name)) return { name: "image", color: C.purple };
+  if (CODE_RE.test(e.name)) return { name: "file-code", color: C.accent };
+  return { name: "file", color: C.text4 };
 }
 
 function fmtSize(n: number): string {
@@ -21,6 +30,29 @@ function fmtSize(n: number): string {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
   return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+interface Crumb {
+  label: string;
+  path: string;
+}
+
+/** Split a path into clickable ancestors. Handles both separators because the
+ *  same panel lists a local Windows fs and a remote POSIX one. */
+function crumbsFor(path: string): Crumb[] {
+  if (!path) return [];
+  const win = /^[A-Za-z]:[\\/]/.test(path) || (path.includes("\\") && !path.startsWith("/"));
+  const sep = win ? "\\" : "/";
+  const parts = path.split(/[\\/]+/).filter(Boolean);
+  const out: Crumb[] = [];
+  if (!win) out.push({ label: "/", path: "/" });
+  let acc = "";
+  for (const part of parts) {
+    if (acc === "") acc = win ? part + sep : sep + part;
+    else acc = acc + (acc.endsWith(sep) ? "" : sep) + part;
+    out.push({ label: part, path: acc });
+  }
+  return out;
 }
 
 /** File-browser side panel. Lists the active tab's session (local fs or SFTP),
@@ -41,6 +73,9 @@ export function FileBrowser() {
   /** What the path input currently shows. Falls out of sync with listing()
    *  while the user is typing — committed via Enter or blur. */
   const [pathDraft, setPathDraft] = createSignal("");
+  /** The path slot is a breadcrumb at rest and a text field while editing —
+   *  same box, same height, so switching never moves the toolbar. */
+  const [editingPath, setEditingPath] = createSignal(false);
 
   async function navigate(path: string) {
     const t = activeTab();
@@ -87,7 +122,7 @@ export function FileBrowser() {
       setError("No active session for this tab.");
       return;
     }
-    // Start at the tab's 📍 marked cwd, else probe the live shell cwd, else
+    // Start at the tab's marked cwd, else probe the live shell cwd, else
     // let the backend fall back to the session's home dir.
     let start = t.cwd ?? null;
     if (!start) {
@@ -107,6 +142,18 @@ export function FileBrowser() {
     if (!l) return [];
     if (filesShowHidden()) return l.entries;
     return l.entries.filter((e) => !e.name.startsWith("."));
+  });
+
+  const crumbs = createMemo(() => crumbsFor(listing()?.path ?? ""));
+  /** Only the last three ancestors fit a 260px panel; the rest collapse into
+   *  a single "…" that still navigates to where they were. */
+  const shownCrumbs = createMemo(() => {
+    const c = crumbs();
+    return c.length > 3 ? c.slice(-3) : c;
+  });
+  const hiddenCrumb = createMemo(() => {
+    const c = crumbs();
+    return c.length > 3 ? c[c.length - 4] : null;
   });
 
   function commitPath() {
@@ -175,146 +222,226 @@ export function FileBrowser() {
   }
 
   return (
-    <div style={panelStyle}>
-      <div style={headerStyle}>
+    <div
+      style={
+        layoutMode() === "right-split"
+          ? { ...panelCard(), flex: 1, "min-height": 0 }
+          : panelStyle
+      }
+    >
+      <PanelHeader
+        icon="folder-open"
+        title="Files"
+        meta={listing() ? `${visibleEntries().length} items` : undefined}
+        onClose={closeFiles}
+        closeTitle="Close file browser"
+      />
+
+      <div style={toolbarStyle}>
         <button
           onClick={() => {
             const p = listing()?.parent;
             if (p != null) navigate(p);
           }}
           disabled={listing()?.parent == null}
+          class="bs-iconbtn"
           title="Up one level"
           style={navBtn(listing()?.parent == null)}
         >
-          ↑
+          <Icon name="arrow-up" />
         </button>
         <button
           onClick={() => navigate(listing()?.path ?? "")}
+          class="bs-iconbtn"
           title="Refresh"
-          style={navBtn(false)}
+          style={navBtn()}
         >
-          ⟳
+          <Icon name="refresh-cw" />
         </button>
         <button
           onClick={toggleFilesShowHidden}
+          class="bs-iconbtn"
+          aria-pressed={filesShowHidden()}
           title={filesShowHidden() ? "Hide dotfiles" : "Show dotfiles"}
-          style={{
-            ...navBtn(false),
-            background: filesShowHidden() ? C.accentBg : "transparent",
-            color: filesShowHidden() ? C.accent : C.text2,
-            "border-color": filesShowHidden() ? C.accentBdr : C.border,
-          }}
+          style={navBtn()}
         >
-          .{filesShowHidden() ? "✓" : ""}
+          <Icon name={filesShowHidden() ? "eye" : "eye-off"} />
         </button>
-        <input
-          value={pathDraft()}
-          onInput={(e) => setPathDraft(e.currentTarget.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              commitPath();
-              e.currentTarget.blur();
-            } else if (e.key === "Escape") {
-              e.preventDefault();
+
+        <div
+          style={pathSlotStyle}
+          onClick={() => {
+            if (!editingPath()) {
               setPathDraft(listing()?.path ?? "");
-              e.currentTarget.blur();
+              setEditingPath(true);
             }
           }}
-          onFocus={(e) => e.currentTarget.select()}
-          onBlur={commitPath}
-          spellcheck={false}
-          placeholder="path…"
-          title="Type a path and press Enter to jump"
-          style={pathInputStyle}
-        />
+          title="Click to type a path"
+        >
+          <Show
+            when={editingPath()}
+            fallback={
+              <div style={crumbRowStyle}>
+                <Show when={hiddenCrumb()}>
+                  {(c) => (
+                    <>
+                      <button
+                        class="bs-btn"
+                        style={crumbBtn(false)}
+                        title={c().path}
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          navigate(c().path);
+                        }}
+                      >
+                        …
+                      </button>
+                      <span style={crumbSepStyle}>
+                        <Icon name="chevron-right" size={12} />
+                      </span>
+                    </>
+                  )}
+                </Show>
+                <For each={shownCrumbs()}>
+                  {(c, i) => (
+                    <>
+                      <Show when={i() > 0}>
+                        <span style={crumbSepStyle}>
+                          <Icon name="chevron-right" size={12} />
+                        </span>
+                      </Show>
+                      <button
+                        class="bs-btn"
+                        style={crumbBtn(i() === shownCrumbs().length - 1)}
+                        title={c.path}
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          navigate(c.path);
+                        }}
+                      >
+                        {c.label}
+                      </button>
+                    </>
+                  )}
+                </For>
+              </div>
+            }
+          >
+            <input
+              ref={(el) => queueMicrotask(() => { el.focus(); el.select(); })}
+              class="bs-input"
+              value={pathDraft()}
+              onInput={(e) => setPathDraft(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitPath();
+                  e.currentTarget.blur();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  setPathDraft(listing()?.path ?? "");
+                  e.currentTarget.blur();
+                }
+              }}
+              onBlur={() => {
+                commitPath();
+                setEditingPath(false);
+              }}
+              spellcheck={false}
+              placeholder="path…"
+              style={pathInputStyle}
+            />
+          </Show>
+        </div>
+
         <button
           onClick={() => doUpload(false)}
           disabled={!!transfer()}
+          class="bs-iconbtn"
           title="Upload file(s) to this directory"
           style={navBtn(!!transfer())}
         >
-          ⬆📄
+          <Icon name="upload" />
         </button>
         <button
           onClick={() => doUpload(true)}
           disabled={!!transfer()}
+          class="bs-iconbtn"
           title="Upload a folder to this directory"
           style={navBtn(!!transfer())}
         >
-          ⬆📁
-        </button>
-        <button
-          onClick={closeFiles}
-          title="Close panel"
-          style={navBtn(false)}
-        >
-          ×
+          <Icon name="folder-up" />
         </button>
       </div>
 
       <Show when={transfer()}>
-        <div style={transferStyle}>{transfer()}</div>
+        <Notice tone="info">{transfer()}</Notice>
+      </Show>
+      <Show when={error()}>
+        <Notice tone="error">{error()}</Notice>
       </Show>
 
-      <div style={{ flex: 1, "overflow-y": "auto", "min-height": 0 }}>
-        <Show when={error()}>
-          <div style={errStyle}>{error()}</div>
-        </Show>
+      <div style={listStyle}>
         <Show when={loading()}>
-          <div style={{ padding: "16px", opacity: 0.6, "font-size": "13px" }}>Loading…</div>
+          <div style={hintStyle}>Loading…</div>
         </Show>
         <Show when={!loading() && listing()}>
           <For
             each={visibleEntries()}
             fallback={
-              <div style={{ padding: "16px", opacity: 0.5, "font-size": "13px" }}>
+              <div style={hintStyle}>
                 {filesShowHidden() || listing()!.entries.length === 0
                   ? "Empty directory"
-                  : "No visible entries (only dotfiles here — click the . button to show)"}
+                  : "No visible entries — only dotfiles here."}
               </div>
             }
           >
             {(e) => (
               <div
+                class="bs-row"
                 onClick={() => onEntry(e)}
-                style={row}
-                onMouseEnter={(ev) => {
-                  ev.currentTarget.style.background = C.bgHover;
-                  setHoverPath(e.path);
+                style={{
+                  ...rowStyle,
+                  "--btn-fg": e.is_dir ? C.text : C.text2,
+                  "--btn-fg-hover": C.text,
                 }}
-                onMouseLeave={(ev) => {
-                  ev.currentTarget.style.background = "transparent";
-                  setHoverPath((p) => (p === e.path ? null : p));
-                }}
+                // The inline style.background writes are gone (.bs-row:hover
+                // owns the tint) but hoverPath stays — the ⬇ hangs off it.
+                onMouseEnter={() => setHoverPath(e.path)}
+                onMouseLeave={() => setHoverPath((p) => (p === e.path ? null : p))}
               >
-                <span style={{ width: "20px", "text-align": "center", "flex-shrink": 0 }}>{iconFor(e)}</span>
-                <span
-                  style={{
-                    flex: 1,
-                    overflow: "hidden",
-                    "text-overflow": "ellipsis",
-                    "white-space": "nowrap",
-                    color: e.is_dir ? C.text : C.text2,
-                  }}
-                >
-                  {e.name}
+                <span style={{ color: iconFor(e).color, display: "flex", "flex-shrink": 0 }}>
+                  <Icon name={iconFor(e).name} size={16} />
                 </span>
-                <Show when={openingPath() === e.path}>
-                  <span style={{ "font-size": "11px", color: C.accent, "flex-shrink": 0 }}>opening…</span>
-                </Show>
-                <Show when={hoverPath() === e.path && !transfer()}>
-                  <button
-                    onClick={(ev) => doDownload(e, ev)}
-                    title={e.is_dir ? "Download folder…" : "Download file…"}
-                    style={rowDownloadBtn}
+                <span style={nameStyle}>{e.name}</span>
+                {/* Fixed trailing slot: the size, "opening…" and the ⬇ all
+                    share 56px, so the filename never reflows on hover. */}
+                <span style={trailStyle}>
+                  <Show
+                    when={hoverPath() === e.path && !transfer()}
+                    fallback={
+                      <Show
+                        when={openingPath() === e.path}
+                        fallback={
+                          <Show when={!e.is_dir}>
+                            <span style={sizeStyle}>{fmtSize(e.size)}</span>
+                          </Show>
+                        }
+                      >
+                        <span style={{ ...sizeStyle, color: C.accent }}>opening…</span>
+                      </Show>
+                    }
                   >
-                    ⬇
-                  </button>
-                </Show>
-                <Show when={!e.is_dir && openingPath() !== e.path && hoverPath() !== e.path}>
-                  <span style={{ "font-size": "11px", color: C.text3, "flex-shrink": 0 }}>{fmtSize(e.size)}</span>
-                </Show>
+                    <button
+                      class="bs-iconbtn"
+                      onClick={(ev) => doDownload(e, ev)}
+                      title={e.is_dir ? "Download folder…" : "Download file…"}
+                      style={rowDownloadBtn}
+                    >
+                      <Icon name="download" />
+                    </button>
+                  </Show>
+                </span>
               </div>
             )}
           </For>
@@ -333,76 +460,139 @@ const panelStyle = {
   overflow: "hidden",
 } as const;
 
-const headerStyle = {
-  padding: "6px 8px",
-  "border-bottom": `1px solid ${C.border}`,
+const toolbarStyle = {
+  padding: `${S[1]} ${S[1.5]}`,
   display: "flex",
   "align-items": "center",
-  gap: "4px",
+  gap: S[1],
+  "flex-shrink": 0,
+} as const;
+
+/** The path box. Breadcrumb and text field share it, so the two states are the
+ *  same rectangle — only the contents swap. */
+const pathSlotStyle = {
+  flex: 1,
+  "min-width": 0,
+  height: H.compact,
+  display: "flex",
+  "align-items": "center",
+  background: C.bg3,
+  border: `1px solid ${C.borderSub}`,
+  "border-radius": R.sm,
+  padding: `0 ${S[0.5]}`,
+  cursor: "text",
+  overflow: "hidden",
+} as const;
+
+const crumbRowStyle = {
+  display: "flex",
+  "align-items": "center",
+  "min-width": 0,
+  flex: 1,
+  overflow: "hidden",
+} as const;
+
+const crumbBtn = (current: boolean): JSX.CSSProperties => ({
+    height: "18px",
+    padding: `0 ${S[0.5]}`,
+    border: "none",
+    cursor: "pointer",
+    "font-family": FONT.mono,
+    ...T[11],
+    "font-weight": current ? 500 : 400,
+    "--btn-bg": "transparent",
+    "--btn-fg": current ? C.text : C.text3,
+    "--btn-fg-hover": C.text,
+    "max-width": "120px",
+    overflow: "hidden",
+    "text-overflow": "ellipsis",
+  "white-space": "nowrap",
+  "flex-shrink": 0,
+});
+
+const crumbSepStyle = {
+  color: C.text4,
+  display: "flex",
   "flex-shrink": 0,
 } as const;
 
 const pathInputStyle = {
   flex: 1,
   "min-width": 0,
-  background: C.bg,
-  color: C.text,
-  border: `1px solid ${C.border}`,
-  "border-radius": R.sm,
-  padding: "3px 8px",
+  height: "18px",
+  padding: `0 ${S[1]}`,
+  background: "transparent",
+  border: "none",
   "font-family": FONT.mono,
-  "font-size": "12px",
-  outline: "none",
+  ...T[12],
 } as const;
 
-const navBtn = (disabled: boolean) =>
-  ({
-    background: "transparent",
-    color: disabled ? C.text3 : C.text2,
-    border: `1px solid ${C.border}`,
-    "border-radius": R.sm,
-    padding: "2px 8px",
-    "font-size": "12px",
-    cursor: disabled ? "default" : "pointer",
-    "flex-shrink": 0,
-  }) as const;
+const navBtn = (disabled = false): JSX.CSSProperties => ({
+  width: H.compact,
+  height: H.compact,
+  padding: "0",
+  border: "none",
+  cursor: disabled ? "default" : "pointer",
+  "--btn-bg": "transparent",
+  "--btn-fg": C.text2,
+  "--btn-fg-hover": C.text,
+});
 
-const errStyle = {
-  padding: "12px 16px",
-  color: C.red,
-  "font-size": "12px",
-  "white-space": "pre-wrap",
+const listStyle = {
+  flex: 1,
+  "overflow-y": "auto",
+  "min-height": 0,
+  padding: `${S[1]} ${S[1.5]}`,
 } as const;
 
-const row = {
+const hintStyle = {
+  padding: `${S[3]} ${S[2]}`,
+  color: C.text3,
+  ...T[12],
+} as const;
+
+const rowStyle = {
   display: "flex",
   "align-items": "center",
-  gap: "10px",
-  padding: "5px 12px",
+  gap: S[2],
+  height: H.default,
+  padding: `0 ${S[2]}`,
+  "border-radius": R.sm,
   cursor: "pointer",
-  "font-size": "13px",
+  ...T[12],
   "user-select": "none",
 } as const;
 
-const rowDownloadBtn = {
-  background: "transparent",
-  color: C.accent,
-  border: "none",
-  cursor: "pointer",
-  "font-size": "13px",
-  padding: "0 2px",
-  "line-height": "1",
-  "flex-shrink": 0,
-} as const;
-
-const transferStyle = {
-  padding: "5px 12px",
-  "font-size": "11px",
-  color: C.accent,
-  background: C.accentBg,
-  "border-bottom": `1px solid ${C.border}`,
-  "white-space": "nowrap",
+const nameStyle = {
+  flex: 1,
+  "min-width": 0,
   overflow: "hidden",
   "text-overflow": "ellipsis",
+  "white-space": "nowrap",
+} as const;
+
+/** 56px keeps "1023.4 KB", "opening…" and the ⬇ on one right edge. */
+const trailStyle = {
+  width: "56px",
   "flex-shrink": 0,
+  display: "flex",
+  "align-items": "center",
+  "justify-content": "flex-end",
+} as const;
+
+const sizeStyle = {
+  ...T[11],
+  color: C.text3,
+  "font-variant-numeric": "tabular-nums",
+  "white-space": "nowrap",
+} as const;
+
+const rowDownloadBtn = {
+  width: H.compact,
+  height: H.compact,
+  padding: "0",
+  border: "none",
+  cursor: "pointer",
+  "--btn-bg": "transparent",
+  "--btn-fg": C.accent,
 } as const;

@@ -54,7 +54,7 @@ export const gitWidth = (): number => activeTab()?.gitWidth ?? DEFAULT_GIT_WIDTH
 export function setGitWidth(w: number) {
   const id = activeTabId();
   if (!id) return;
-  setTabGitWidth(id, Math.max(240, Math.min(900, w)));
+  setTabGitWidth(id, Math.max(260, Math.min(900, w)));
 }
 
 export const gitHeight = () => state.height;

@@ -253,6 +253,19 @@ kbd {
   transition: opacity var(--dur-1) var(--ease);
 }
 
+/* The same strip on the other axis: a row (horizontal) splitter between two
+   stacked panels. Only the bar rotates — grab area, colour and timing are
+   shared with the column handle. */
+.bs-resize[data-axis="row"]::after {
+  top: 50%;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  width: auto;
+  height: 2px;
+  transform: translateY(-50%);
+}
+
 .bs-resize:hover::after {
   opacity: 0.5;
 }

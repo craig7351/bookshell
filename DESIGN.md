@@ -54,6 +54,21 @@ The full slot set is `--btn-bg` / `--btn-bg-hover` / `--btn-bg-active` /
 colour) and `--btn-fg` / `--btn-fg-hover`. Every one of them has a token
 default, so a component sets only the ones it actually changes.
 
+## Panels
+
+The three right-column panels (Git, Files, Side terminal) share
+`components/ui/PanelHeader.tsx`: a 32px bar, 16px glyph, uppercase `--t-11`/600
+title, a meta slot and one 22x22 close button. In the right-split layout each
+panel is a card — `panelCard()`: 6px margin on three sides, `--r-md`, one
+`--line-sub` hairline, `overflow: hidden` — so a splitter never draws a second
+line beside the card's own. A splitter between two stacked cards is
+`.bs-resize[data-axis="row"]` and is pulled into the gap with a negative
+margin, exactly like the column handle, so the gap stays 6px.
+
+`ui/EmptyState.tsx` (28px `--text-4` glyph, `--t-13`/500 title) and its
+`Skeleton`, and `ui/Notice.tsx` (one tinted inline band, four tones) are the
+only "nothing here" / "something happened" blocks a panel may use.
+
 ## Tooltips
 
 `class="bs-tip" data-tip="…"`, not `title=`. Dark bubble, 400ms delay, visible

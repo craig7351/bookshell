@@ -11,12 +11,15 @@ import {
   selectCommitFile,
   setGitHeight,
   setGitWidth,
+  toggleGit,
   viewer,
 } from "../stores/git";
 import { layoutMode, layoutVertical } from "../stores/layout";
 import { activeTabId, captureCwdViaPty, setTabCwd } from "../stores/tabs";
 import type { GitStatusEntry } from "../ipc/api";
 import { CloseX } from "./CloseX";
+import { PanelHeader, panelCard } from "./ui/PanelHeader";
+import { Icon } from "../icons";
 import { MarkdownViewer } from "./MarkdownViewer";
 
 function isMdPath(p: string | null | undefined): boolean {
@@ -63,21 +66,8 @@ export function GitPanel() {
   // Panel fills flex:1 in the right column (height is fluid, not fixed).
   if (layoutMode() === "right-split") {
     return (
-      <div
-        style={{
-          flex: 1,
-          "min-height": 0,
-          width: "100%",
-          background: C.bg2,
-          "border-bottom": `1px solid ${C.border}`,
-          display: "flex",
-          "flex-direction": "column",
-          overflow: "hidden",
-          color: C.text,
-          "font-size": "13px",
-        }}
-      >
-        <Header loading={loading()} />
+      <div style={{ ...panelCard(), flex: 1, "min-height": 0 }}>
+        <Header loading={loading()} tabId={tabId()} />
         <div style={{ flex: 1, "overflow-y": "auto" }}>
           <Show when={error()}>
             <ErrorBox tabId={tabId()} message={error()!} />
@@ -110,22 +100,11 @@ export function GitPanel() {
   return (
     <>
       <div
+        class="bs-resize"
+        data-axis={layoutVertical() ? "row" : "col"}
+        data-dragging={dragging() ? "true" : "false"}
         onMouseDown={startDrag}
-        style={layoutVertical() ? {
-          height: "4px",
-          cursor: "row-resize",
-          background: dragging() ? C.accent : "transparent",
-          "border-bottom": `1px solid ${C.border}`,
-          "flex-shrink": "0",
-          transition: "background 0.15s",
-        } : {
-          width: "4px",
-          cursor: "col-resize",
-          background: dragging() ? C.accent : "transparent",
-          "border-right": `1px solid ${C.border}`,
-          "flex-shrink": "0",
-          transition: "background 0.15s",
-        }}
+        style={layoutVertical() ? rowHandle : colHandle}
         title="Drag to resize"
       />
       <div
@@ -152,7 +131,7 @@ export function GitPanel() {
           "font-size": "13px",
         }}
       >
-        <Header loading={loading()} />
+        <Header loading={loading()} tabId={tabId()} />
         <div style={{ flex: 1, "overflow-y": "auto" }}>
           <Show when={error()}>
             <ErrorBox tabId={tabId()} message={error()!} />
@@ -229,22 +208,36 @@ function ErrorBox(p: { tabId: string; message: string }) {
   );
 }
 
-function Header(_p: { loading: boolean }) {
+function Header(p: { loading: boolean; tabId: string }) {
   return (
-    <div
-      style={{
-        padding: "7px 10px",
-        "border-bottom": `1px solid ${C.border}`,
-        display: "flex",
-        "align-items": "center",
-        gap: "6px",
-        "flex-shrink": 0,
-      }}
-    >
-      <strong style={{ "font-size": "12px", color: C.text2 }}>🌿 Git view</strong>
-    </div>
+    <PanelHeader
+      icon="git-branch"
+      title="Git"
+      meta={
+        <Show when={p.loading}>
+          <span style={{ display: "flex" }}>
+            <Icon name="refresh-cw" size={12} class="bs-spin" />
+          </span>
+        </Show>
+      }
+      onClose={() => toggleGit(p.tabId)}
+      closeTitle="Close Git view"
+    />
   );
 }
+
+/** Grab strips. No border of their own — the panel card draws the only line. */
+const rowHandle = {
+  height: "4px",
+  cursor: "row-resize",
+  "z-index": "5",
+} as const;
+
+const colHandle = {
+  width: "4px",
+  cursor: "col-resize",
+  "z-index": "5",
+} as const;
 
 function BranchHeader(p: { d: NonNullable<ReturnType<() => any>> }) {
   const ahead = p.d.ahead as number;
