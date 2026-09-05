@@ -165,6 +165,15 @@ export function TerminalView(props: Props) {
       cursorBlink: true,
       fontFamily: FONT.term,
       fontSize: general().font_size,
+      // 1.2 gives the grid the same optical rhythm as the rest of the chrome
+      // without breaking box-drawing TUIs (htop, Claude Code) the way a taller
+      // leading does. Changing it re-measures the cell, hence it lands in the
+      // same commit as the host padding and the ruler width.
+      lineHeight: 1.2,
+      fontWeightBold: 600,
+      // Reserves a 10px strip on the right edge for search / highlight marks.
+      // It costs cols, so it is measured together with the padding above.
+      overviewRulerWidth: 10,
       scrollback: general().scrollback,
       allowProposedApi: true,
       theme: xtermThemeFor(general().terminal_palette),
@@ -520,7 +529,11 @@ export function TerminalView(props: Props) {
     >
       <div
         ref={host}
-        style={{ position: "absolute", inset: "0", padding: "4px" }}
+        // Asymmetric on purpose: more air above the first row and to the left
+        // of the prompt than on the edges the overview ruler and the scrollbar
+        // already occupy. Background must stay the exact xtermTheme.background
+        // (--bg-2) or the padding reads as a frame around the canvas.
+        style={{ position: "absolute", inset: "0", padding: "10px 8px 8px 12px", background: C.bg }}
         onclick={() => {
           if (props.active && !isSearchOpenFor(props.tab.id)) {
             term?.focus();

@@ -1,8 +1,9 @@
 import { createSignal, For, Show } from "solid-js";
 import { api, type CommandButton } from "../ipc/api";
 import { buttons, loadButtons } from "../stores/buttons";
+import { Icon } from "../icons";
 import { activeTab, bumpFit } from "../stores/tabs";
-import { C, FONT, R, overlayStyle, dialogStyle, btnPrimary, btnSecondary, btnDanger } from "../theme";
+import { C, FONT, H, R, overlayStyle, dialogStyle, btnPrimary, btnSecondary, btnDanger } from "../theme";
 
 interface Props {
   onEdit: () => void;
@@ -75,8 +76,14 @@ export function CommandBar(props: Props) {
         }}
       </For>
       <div style={editSepStyle} />
-      <button onClick={props.onEdit} style={editBtnStyle} title="Edit buttons">
-        ⚙
+      <button
+        class="bs-iconbtn bs-tip bs-tip-up bs-tip-end"
+        onClick={props.onEdit}
+        style={editBtnStyle}
+        data-tip="Edit command buttons"
+        aria-label="Edit command buttons"
+      >
+        <Icon name="pencil" size={14} />
       </button>
 
       <Show when={pendingConfirm()}>
@@ -146,7 +153,7 @@ const btnStyle = {
   transition: "background 0.08s",
 } as const;
 
-/** Visual divider before the Edit button, so the ⚙ reads as a separate
+/** Visual divider before the Edit button, so the pencil reads as a separate
  *  configuration affordance instead of "just another command button". */
 const editSepStyle = {
   "margin-left": "auto",
@@ -155,14 +162,16 @@ const editSepStyle = {
   background: C.border,
 } as const;
 
+/** Square ghost button. Background / foreground are slots the .bs-iconbtn
+ *  class drives on hover — never set either one inline here. */
 const editBtnStyle = {
-  background: "transparent",
-  color: C.text3,
-  border: `1px solid ${C.borderSub}`,
-  "border-radius": R.sm,
-  padding: "3px 9px",
+  "--btn-bg": "transparent",
+  "--btn-fg": C.text3,
+  width: H.compact,
+  height: H.compact,
+  padding: "0",
+  border: "1px solid transparent",
   cursor: "pointer",
-  "font-size": "12px",
 } as const;
 
 const confirmOverlayStyle = overlayStyle;

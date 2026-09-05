@@ -1,9 +1,10 @@
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
 import { api, type SystemStats } from "../ipc/api";
+import { Icon, type IconName } from "../icons";
 import { activeTab, activeTabId, tabs } from "../stores/tabs";
 import { clearDiag, diagEntries } from "../stores/diagnostics";
 import { gitState } from "../stores/git";
-import { C, FONT, R, SH } from "../theme";
+import { C, FONT, H, R, S, SH, T } from "../theme";
 
 /** Middle-truncate a path so the most distinctive parts (root + leaf) stay
  *  visible. Example: `/home/craig/projects/bookshell/src` (max 36)
@@ -72,9 +73,9 @@ export function StatusFooter() {
     <div style={footerStyle}>
       {/* — left: per-tab context — */}
       <Show when={cwd()}>
-        <span style={{ ...cellStyle, color: C.text }} title={`cwd: ${cwd()}`}>
-          📍 {shortenPath(cwd()!)}
-        </span>
+        <Cell icon="map-pin" tip={`cwd: ${cwd()}`} align="start" color={C.text}>
+          {shortenPath(cwd()!)}
+        </Cell>
       </Show>
       <Show when={gitInfo()?.branch}>
         {(b) => {
@@ -86,62 +87,76 @@ export function StatusFooter() {
               ? ` ${ahead ? `↑${ahead}` : ""}${behind ? `↓${behind}` : ""}`.trim()
               : "";
           return (
-            <span
-              style={cellStyle}
-              title={
+            <Cell
+              icon="git-branch"
+              align="start"
+              tip={
                 info.upstream
                   ? `Branch ${b()} · upstream ${info.upstream}${trail ? ` (${trail})` : ""}`
                   : `Branch ${b()} (no upstream)`
               }
             >
-              🌿 {b()}
+              {b()}
               {trail && <span style={{ color: C.text3, "margin-left": "4px" }}>{trail}</span>}
-            </span>
+            </Cell>
           );
         }}
       </Show>
       <Show when={activeTab()?.passthrough}>
-        <span style={{ ...cellStyle, color: C.purple }} title="AI passthrough on">
-          🤖 passthrough
-        </span>
+        <Cell icon="bot" tip="AI passthrough on" align="start" color={C.purple}>
+          passthrough
+        </Cell>
       </Show>
 
       <div style={{ flex: 1 }} />
 
       {/* — right: system / process metrics — */}
-      <span style={cellStyle} title="Open sessions">
-        🔌 {tabs().filter((t) => t.status === "connected").length}
-      </span>
-      <span style={cellStyle} title="Resident memory">
-        🧠 {stats() ? `${stats()!.rss_mb} MB` : "—"}
-      </span>
-      <span style={cellStyle} title="CPU usage (delta since last poll)">
-        ⚙ {stats() ? `${stats()!.cpu_pct.toFixed(1)}%` : "—"}
-      </span>
-      <span style={cellStyle} title="Uptime">
-        ⏱ {formatUptime(uptime())}
-      </span>
+      <Cell icon="plug" tip="Open sessions">
+        {tabs().filter((t) => t.status === "connected").length}
+      </Cell>
+      <Cell icon="activity" tip="Resident memory">
+        {stats() ? `${stats()!.rss_mb} MB` : "—"}
+      </Cell>
+      <Cell icon="cpu" tip="CPU usage (delta since last poll)">
+        {stats() ? `${stats()!.cpu_pct.toFixed(1)}%` : "—"}
+      </Cell>
+      <Cell icon="clock" tip="Uptime">
+        {formatUptime(uptime())}
+      </Cell>
       <div
         data-diag-root
         style={{ position: "relative", display: "flex", "align-items": "center" }}
       >
         <button
           type="button"
+          class="bs-btn bs-tip bs-tip-up bs-tip-end"
+          aria-expanded={open()}
           onClick={(e) => {
             e.stopPropagation();
             setOpen((v) => !v);
           }}
           style={{
             ...errBtnStyle,
-            color: hasErrors() ? C.red : C.text2,
-            background: hasErrors() && open() ? C.redBg : "transparent",
+            // Slots, never the properties themselves: .bs-btn owns background
+            // and colour, so setting them inline would kill its hover state.
+            "--btn-fg": hasErrors() ? C.red : C.text2,
+            "--btn-bg": hasErrors() && open() ? C.redBg : "transparent",
           }}
-          title={hasErrors() ? `${errCount()} log records` : "No recent errors"}
+          data-tip={hasErrors() ? `${errCount()} log records` : "No recent errors"}
         >
-          ⚠ {errCount()}
-          <span style={{ "font-size": "10px", "margin-left": "4px", opacity: 0.7 }}>
-            {open() ? "▾" : "▴"}
+          <span style={iconSlot}>
+            <Icon name="alert-triangle" size={12} />
           </span>
+          {errCount()}
+          <Icon
+            name="chevron-down"
+            size={12}
+            style={{
+              opacity: 0.7,
+              // The popover opens upward, so the chevron points up when closed.
+              transform: open() ? "none" : "rotate(180deg)",
+            }}
+          />
         </button>
         <Show when={open()}>
           <DiagPopover />
@@ -210,7 +225,9 @@ const footerStyle = {
   display: "flex",
   "align-items": "center",
   gap: "16px",
-  padding: "3px 12px",
+  // Vertical padding is 0 so a 22px compact control (the log button) fits the
+  // 22px bar exactly instead of bleeding over the terminal above it.
+  padding: `0 ${S[3]}`,
   background: C.bg2,
   "border-top": `1px solid ${C.border}`,
   "font-size": "11px",
@@ -227,12 +244,52 @@ const cellStyle = {
   "white-space": "nowrap",
 } as const;
 
+/** Fixed 12px slot so every value starts on the same x whatever the glyph.
+ *  The marker stays --text-4 even when the cell's text is coloured: it names
+ *  the category, it is not the information. */
+const iconSlot = {
+  display: "inline-flex",
+  width: "12px",
+  "justify-content": "center",
+  "flex-shrink": 0,
+  color: C.text4,
+} as const;
+
+interface CellProps {
+  icon: IconName;
+  /** Tooltip text. The footer sits on the window edge, so it opens upward. */
+  tip: string;
+  /** Which edge the bubble hangs from: left-hand cells anchor to their start
+   *  edge, right-hand ones to their end edge. A centred bubble would run off
+   *  the window. */
+  align?: "start" | "end";
+  color?: string;
+  children: JSX.Element;
+}
+
+/** One footer metric: 12px marker in a fixed slot, then the value. */
+function Cell(props: CellProps) {
+  return (
+    <span
+      class={`bs-tip bs-tip-up bs-tip-${props.align ?? "end"}`}
+      data-tip={props.tip}
+      style={{ ...cellStyle, color: props.color }}
+    >
+      <span style={iconSlot}>
+        <Icon name={props.icon} size={12} />
+      </span>
+      {props.children}
+    </span>
+  );
+}
+
 const errBtnStyle = {
-  background: "transparent",
   border: `1px solid transparent`,
-  "border-radius": "4px",
-  padding: "1px 8px",
-  "font-size": "11px",
+  "border-radius": R.xs,
+  height: H.compact,
+  padding: `0 ${S[2]}`,
+  gap: S[1],
+  ...T[11],
   cursor: "pointer",
   "font-weight": 600,
   display: "inline-flex",

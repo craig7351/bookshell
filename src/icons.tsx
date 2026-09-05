@@ -7,8 +7,9 @@
  * it sits next to (including the accent colour a toggle takes when pressed).
  *
  * RULES
- *  - Sizes are 12 / 14 / 16 only (see IconSize). 12 = footer / badge, 14 =
- *    toolbar and rows, 16 = brand glyph and empty states.
+ *  - Sizes are 12 / 14 / 16 (see IconSize). 12 = footer / badge, 14 = toolbar
+ *    and rows, 16 = brand glyph. 40 is the one hero size, reserved for the
+ *    illustration in an empty state — never for a control.
  *  - Never give a glyph its own colour inline; set `color` on the parent so
  *    hover / aria-pressed states carry the icon with them.
  *  - Emoji are for user content only (custom tab icons, command buttons).
@@ -70,12 +71,13 @@ const PATHS = {
 
 export type IconName = keyof typeof PATHS;
 
-/** 12 = footer / badge · 14 = toolbar, rows · 16 = brand, empty state. */
-export type IconSize = 12 | 14 | 16;
+/** 12 = footer / badge · 14 = toolbar, rows · 16 = brand · 40 = hero glyph
+ *  in an empty state (the only size above 16, and never on a control). */
+export type IconSize = 12 | 14 | 16 | 40;
 
 interface IconProps {
   name: IconName;
-  /** 12 / 14 / 16 only. Defaults to 14. */
+  /** 12 / 14 / 16, or 40 for an empty-state hero glyph. Defaults to 14. */
   size?: IconSize;
   /** Stroke width. Defaults to 1.75; 2 reads better at 12px on a light glyph. */
   stroke?: number;

@@ -52,7 +52,14 @@ handlers that only rewrite style; keep the handler if it also does real work
 ## Tooltips
 
 `class="bs-tip" data-tip="…"`, not `title=`. Dark bubble, 400ms delay, visible
-on disabled buttons.
+on disabled buttons, wraps at 320px. The bubble hangs below and centred by
+default; add `bs-tip-up` on anything near the bottom edge (StatusFooter,
+CommandBar) and `bs-tip-start` / `bs-tip-end` on anything near a side edge,
+or it renders off-window. An element with `overflow: hidden` cannot host one —
+the bubble is an `::after`, so it gets clipped; keep `title=` there.
+
+A `<kbd>` is styled by an element rule in base.css (`components/ui/Kbd.tsx` is
+just the semantic wrapper), so key caps look the same everywhere.
 
 ## Scales
 

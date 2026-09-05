@@ -53,6 +53,9 @@ const TOKENS = {
   accentPress: "#0870d8",
   accentFill: "rgba(10,132,255,0.16)",
   accentLine: "rgba(10,132,255,0.38)",
+  // Ambient wash behind hero content (the empty state's radial). Too faint to
+  // read as a fill, which is exactly the point — it tints, it does not select.
+  accentGlow: "rgba(10,132,255,0.06)",
 
   // Semantic colours, each with a fill and a line
   green: "#30d158",
@@ -126,6 +129,7 @@ const TOKEN_NAMES: Record<keyof typeof TOKENS, string> = {
   accentPress: "--accent-press",
   accentFill: "--accent-fill",
   accentLine: "--accent-line",
+  accentGlow: "--accent-glow",
   green: "--green",
   greenFill: "--green-fill",
   greenLine: "--green-line",
@@ -193,6 +197,7 @@ export const C = {
   accentPress: "var(--accent-press)",
   accentBg:    "var(--accent-fill)",
   accentBdr:   "var(--accent-line)",
+  accentGlow:  "var(--accent-glow)",
   cyan:        "var(--cyan)",
   cyanBg:      "var(--cyan-fill)",
   green:       "var(--green)",

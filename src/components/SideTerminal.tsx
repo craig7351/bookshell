@@ -191,6 +191,9 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string }) {
       cursorBlink: true,
       fontFamily: FONT.term,
       fontSize: general().side_font_size,
+      // Matches Terminal.tsx so the two grids share one optical rhythm.
+      lineHeight: 1.2,
+      fontWeightBold: 600,
       scrollback: general().scrollback,
       allowProposedApi: true,
       theme: xtermThemeFor(general().terminal_palette),
@@ -329,5 +332,12 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string }) {
     term?.dispose();
   });
 
-  return <div ref={host} style={{ position: "absolute", inset: "0", padding: "4px" }} />;
+  // Same anatomy as the main terminal host, one notch tighter because the
+  // side pane is narrow. Background is xtermTheme.background exactly (--bg-2).
+  return (
+    <div
+      ref={host}
+      style={{ position: "absolute", inset: "0", padding: "6px 8px 4px 10px", background: C.bg }}
+    />
+  );
 }

@@ -182,6 +182,26 @@ button:disabled,
   color: var(--text-4);
 }
 
+/* Keyboard chip. Element-level so any <kbd> — empty states, dialogs, a Notice,
+   rendered Markdown — reads as the same key cap without a component import.
+   See components/ui/Kbd.tsx for the semantic wrapper. */
+kbd {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 var(--s-15);
+  background: var(--bg-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  box-shadow: var(--sh-1);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: var(--t-10);
+  line-height: var(--t-10-lh);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 /* Split / panel resize handles.
    The element is an 8px grab strip pulled into the gutter with a -4px margin,
    so it costs no layout width and the terminal card keeps its 6px inset. Only
@@ -240,7 +260,13 @@ body.bs-dragging * {
   z-index: 300;
   pointer-events: none;
   opacity: 0;
-  white-space: pre;
+  /* pre-wrap keeps explicit newlines but lets a long tip (a cwd, a command)
+     wrap inside 320px instead of running off the window edge. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  width: max-content;
+  max-width: 320px;
+  text-align: left;
   padding: 4px 8px;
   border-radius: var(--r-xs);
   background: var(--bg-3);
@@ -248,6 +274,26 @@ body.bs-dragging * {
   font-size: var(--t-11);
   line-height: var(--t-11-lh);
   box-shadow: var(--sh-2), var(--hl-top);
+}
+
+/* Placement modifiers. The default bubble hangs below the trigger and is
+   centred on it, which is right for the header but drops off-screen for
+   anything on the bottom edge (StatusFooter) or against a window edge. */
+.bs-tip[data-tip].bs-tip-up::after {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+.bs-tip[data-tip].bs-tip-start::after {
+  left: 0;
+  right: auto;
+  transform: none;
+}
+
+.bs-tip[data-tip].bs-tip-end::after {
+  left: auto;
+  right: 0;
+  transform: none;
 }
 
 .bs-tip[data-tip]:hover::after {

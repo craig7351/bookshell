@@ -38,6 +38,7 @@
   --accent-press: #0870d8;
   --accent-fill:  rgba(10, 132, 255, 0.16);
   --accent-line:  rgba(10, 132, 255, 0.38);
+  --accent-glow:  rgba(10, 132, 255, 0.06);  /* ambient hero wash */
 
   /* ---- Semantic colours ---------------------------------------------- */
   --green: #30d158;

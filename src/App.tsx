@@ -21,6 +21,7 @@ import { loadGeneral } from "./stores/general";
 import { closeSearch, openSearch, searchTabId } from "./stores/search";
 import { actionFor } from "./stores/shortcuts";
 import { Icon, type IconName } from "./icons";
+import { Kbd } from "./components/ui/Kbd";
 import { StatusDot } from "./components/ui/StatusDot";
 import { button, C, H, R, S, SH, T } from "./theme";
 import {
@@ -457,11 +458,25 @@ export default function App() {
                   when={tabs().length > 0}
                   fallback={
                     <div style={emptyStyle}>
-                      <div>No active session</div>
+                      <div style={emptyGlyph}>
+                        <Icon name="terminal" size={40} stroke={1.5} />
+                      </div>
+                      <div style={emptyTitle}>No active session</div>
+                      <div style={emptySub}>
+                        Open a connection to start a terminal. Saved hosts live in the sidebar.
+                      </div>
                       <button class="bs-btn" onClick={() => setShowDialog(true)} style={button("primary", "roomy")}>
                         <Icon name="plus" size={14} />
                         Connect
                       </button>
+                      <div style={emptyKeys}>
+                        <span style={emptyKeyPair}>
+                          <Kbd>Ctrl+Shift+T</Kbd> new session
+                        </span>
+                        <span style={emptyKeyPair}>
+                          <Kbd>Ctrl+F</Kbd> search
+                        </span>
+                      </div>
                     </div>
                   }
                 >
@@ -592,14 +607,55 @@ const passthroughBadge = {
   "font-weight": 600,
 } as const;
 
+/* Empty state — a single centred column, capped at 360px so the copy wraps in
+ * two lines instead of stretching across an ultrawide window. The radial wash
+ * gives the void a centre of gravity without drawing a box. It is a gradient,
+ * not a filter: nothing blurred may sit where the terminal will mount. */
 const emptyStyle = {
   display: "flex",
   "flex-direction": "column",
   "align-items": "center",
   "justify-content": "center",
   height: "100%",
-  gap: S[4],
+  gap: S[3],
+  padding: `0 ${S[6]}`,
+  "text-align": "center",
   color: C.text3,
+  background: `radial-gradient(ellipse at 50% 40%, ${C.accentGlow}, transparent 60%)`,
+} as const;
+
+/** Colour lives on the wrapper — an <Icon> never paints itself. */
+const emptyGlyph = {
+  color: C.text4,
+  "margin-bottom": S[1],
+} as const;
+
+const emptyTitle = {
+  ...T[15],
+  "font-weight": 600,
+  color: C.text,
+} as const;
+
+const emptySub = {
+  ...T[13],
+  color: C.text3,
+  "max-width": "360px",
+} as const;
+
+const emptyKeys = {
+  display: "flex",
+  "flex-wrap": "wrap",
+  "justify-content": "center",
+  gap: S[3],
+  "margin-top": S[1],
+  ...T[11],
+  color: C.text4,
+} as const;
+
+const emptyKeyPair = {
+  display: "inline-flex",
+  "align-items": "center",
+  gap: S[1.5],
 } as const;
 
 /** Ghost toolbar button. Background / foreground are slots the .bs-btn class
