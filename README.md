@@ -61,7 +61,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-Workflow 會自動 build 出 Windows、macOS（Apple Silicon 與 Intel）、Linux 的安裝檔，並上傳到 GitHub 的 draft release。
+Workflow 會自動 build 出 Windows、macOS（Apple Silicon 與 Intel）、Linux 的安裝檔，並直接發布到 GitHub Release（非 draft）。
 
 ## 授權
 

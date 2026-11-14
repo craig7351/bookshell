@@ -61,7 +61,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The workflow builds installers for Windows, macOS (Apple Silicon and Intel), and Linux, then uploads them to a draft release on GitHub.
+The workflow builds installers for Windows, macOS (Apple Silicon and Intel), and Linux, then publishes them directly as a GitHub release (not a draft).
 
 ## License
 
