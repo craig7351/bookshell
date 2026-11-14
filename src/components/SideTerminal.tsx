@@ -7,6 +7,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { api } from "../ipc/api";
+import { registerOsc52 } from "./osc52";
 import { general } from "../stores/general";
 import {
   closeSideTerm,
@@ -236,6 +237,8 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string; onFoc
         api.urlOpen(uri).catch((e) => console.warn("url_open failed", e));
       }),
     );
+    // OSC 52 clipboard writes from mouse-grabbing TUIs. See osc52.ts.
+    registerOsc52(term);
     try {
       term.loadAddon(new WebglAddon());
     } catch {}
