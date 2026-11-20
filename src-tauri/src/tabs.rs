@@ -17,6 +17,8 @@ pub struct TabState {
     /// Manually marked working directory; `cd` is sent after reconnect.
     #[serde(default)]
     pub cwd: Option<String>,
+    #[serde(default)]
+    pub startup_command: Option<String>,
     /// Per-tab width (px) of the right-side Git panel. Persisted so each tab
     /// remembers the user's preferred width across sessions.
     #[serde(default)]

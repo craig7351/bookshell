@@ -23,6 +23,7 @@ export interface Tab {
   /** Manually-marked working directory. If set, `cd '<cwd>'` is sent
    *  ~500ms after a successful reconnect. Null means no cd happens. */
   cwd?: string | null;
+  startupCommand?: string | null;
   /** Persisted per-tab width (px) of the right-side Git panel. */
   gitWidth?: number | null;
   /** Id of the group this tab belongs to (see `groups`), or null/undefined
@@ -305,17 +306,16 @@ export async function captureCwdViaPty(tabId: string): Promise<string | null> {
 /** If the tab has a saved cwd and is connected, send `cd '<cwd>'\r`
  *  after a short delay so the remote shell has time to draw a prompt.
  *  No-op when cwd is unset. */
-export async function restoreCwd(tabId: string) {
+async function restoreCwd(tabId: string, sessionId: string) {
   const t0 = state.tabs.find((x) => x.id === tabId);
-  if (!t0 || !t0.cwd || !t0.sessionId || !supportsShellTools(t0)) return;
-  const sid0 = t0.sessionId;
+  if (!t0?.cwd || t0.sessionId !== sessionId || !supportsShellTools(t0)) return;
   await new Promise((r) => setTimeout(r, 500));
   // Re-check that the same session is still alive.
   const t1 = state.tabs.find((x) => x.id === tabId);
-  if (!t1 || t1.sessionId !== sid0 || t1.status !== "connected") return;
-  const escaped = t1.cwd!.replace(/'/g, "'\\''");
+  if (!t1?.cwd || t1.sessionId !== sessionId || t1.status !== "connected") return;
+  const escaped = t1.cwd.replace(/'/g, "'\\''");
   try {
-    await api.sshWrite(sid0, `cd '${escaped}'\r`);
+    await api.sshWrite(sessionId, `cd '${escaped}'\r`);
   } catch (e) {
     console.warn("restoreCwd write", e);
   }
@@ -492,6 +492,7 @@ function pruneGroupIfEmpty(groupId: string) {
 }
 
 export async function closeTab(id: string) {
+  pendingStartupCommands.delete(id);
   const t = state.tabs.find((x) => x.id === id);
   if (t?.sessionId) {
     await api.sshDisconnect(t.sessionId).catch(() => {});
@@ -528,6 +529,7 @@ export async function connectTab(
     cols: number;
     rows: number;
   },
+  restoreMarkedCwd = false,
 ) {
   updateTab(tabId, { kind: "ssh", status: "connecting", errorMessage: undefined });
   try {
@@ -542,6 +544,7 @@ export async function connectTab(
       closeListeners.get(tabId)?.(reason);
     });
     sessionUnlisteners.set(tabId, [ulData, ulClose]);
+    scheduleStartupCommand(tabId, sid, restoreMarkedCwd ? restoreCwd(tabId, sid) : undefined);
   } catch (e: any) {
     updateTab(tabId, { status: "error", errorMessage: String(e) });
     throw e;
@@ -567,6 +570,7 @@ export async function connectTabLocal(
       closeListeners.get(tabId)?.(reason);
     });
     sessionUnlisteners.set(tabId, [ulData, ulClose]);
+    scheduleStartupCommand(tabId, sid);
   } catch (e: any) {
     updateTab(tabId, { status: "error", errorMessage: String(e) });
     throw e;
@@ -624,6 +628,7 @@ async function connectDirectTab(
       return;
     }
     updateTab(tabId, { status: "connected" });
+    scheduleStartupCommand(tabId, sid);
   } catch (error) {
     dispose();
     if (current()) updateTab(tabId, { status: "error", sessionId: null, errorMessage: String(error) });
@@ -674,10 +679,57 @@ export async function reconnectTabFromProfile(tabId: string): Promise<boolean> {
     password: profile.password,
     cols: 80,
     rows: 24,
-  });
-  // Fire-and-forget: only sends `cd` when a cwd was previously marked.
-  restoreCwd(tabId).catch(() => {});
+  }, true);
   return true;
+}
+
+// Only commands loaded at startup are eligible in this launch. A retry with
+// a new session can run one if the previous session closed during the delay.
+const pendingStartupCommands = new Map<string, string>();
+
+export function normalizeStartupCommand(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim() || /[\u0000-\u001f\u007f-\u009f]/u.test(value)) return null;
+  return value;
+}
+
+function scheduleStartupCommand(tabId: string, sessionId: string, cwdReady?: Promise<void>) {
+  const command = pendingStartupCommands.get(tabId);
+  if (!command) return;
+  window.setTimeout(async () => {
+    await cwdReady;
+    const tab = state.tabs.find((t) => t.id === tabId);
+    if (
+      !tab || tab.status !== "connected" || tab.sessionId !== sessionId ||
+      pendingStartupCommands.get(tabId) !== command
+    ) return;
+
+    pendingStartupCommands.delete(tabId);
+    try {
+      await writeTabInput(tab, command + "\r");
+    } catch (error) {
+      console.warn("Could not send the startup command", error);
+    }
+  }, 3000);
+}
+
+export async function saveTabStartupCommand(tabId: string, value: string) {
+  const tab = state.tabs.find((t) => t.id === tabId);
+  if (!tab) throw new Error("This tab has been closed.");
+  if (importedTabs?.tabs.has(tabId)) {
+    throw new Error("Restart BOOKSHELL to finish importing this tab before editing its startup command.");
+  }
+  const command = normalizeStartupCommand(value);
+  if (!command && value.trim()) throw new Error("Enter a single line without control characters.");
+
+  const previous = tab.startupCommand ?? null;
+  if (command !== previous) pendingStartupCommands.delete(tabId);
+  updateTab(tabId, { startupCommand: command });
+  try {
+    await flushPersistedState();
+  } catch (error) {
+    if (tab.startupCommand === command) updateTab(tabId, { startupCommand: previous });
+    throw error;
+  }
 }
 
 // ─── Persistence ────────────────────────────────────────────────────
@@ -700,6 +752,7 @@ export function persistedTabsSnapshot(): {
       icon: t.icon ?? null,
       passthrough: t.passthrough,
       cwd: t.cwd ?? null,
+      startup_command: t.startupCommand ?? null,
       git_width: t.gitWidth ?? null,
       group_id: t.groupId ?? null,
   }));
@@ -767,6 +820,7 @@ createRoot(() => {
       void t.icon;
       void t.passthrough;
       void t.cwd;
+      void t.startupCommand;
       void t.gitWidth;
       void t.groupId;
     });
@@ -797,6 +851,10 @@ export async function restoreTabs(): Promise<string[] | null> {
     restoring = false;
     return [];
   }
+  for (const tab of file.tabs) {
+    const command = normalizeStartupCommand(tab.startup_command);
+    if (command) pendingStartupCommands.set(tab.id, command);
+  }
   setState("tabs", () =>
     file.tabs.map((t) => ({
       id: t.id,
@@ -808,6 +866,7 @@ export async function restoreTabs(): Promise<string[] | null> {
       icon: t.icon ?? null,
       passthrough: t.passthrough,
       cwd: t.cwd ?? null,
+      startupCommand: pendingStartupCommands.get(t.id) ?? null,
       gitWidth: t.git_width ?? null,
       groupId: t.group_id ?? null,
       fitTick: 0,

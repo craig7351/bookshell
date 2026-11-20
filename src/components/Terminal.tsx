@@ -28,7 +28,7 @@ import {
 import { closeSearch, isSearchOpenFor } from "../stores/search";
 import { general } from "../stores/general";
 import { connectionDescription, connectionUnavailable, connections, serialWindowsOnly } from "../stores/connections";
-import { connectTab, reconnectTabFromProfile, restoreCwd } from "../stores/tabs";
+import { connectTab, reconnectTabFromProfile } from "../stores/tabs";
 
 interface Props {
   tab: Tab;
@@ -197,9 +197,8 @@ export function TerminalView(props: Props) {
         password: pwPrompt(),
         cols: 80,
         rows: 24,
-      });
+      }, true);
       setPwPrompt("");
-      restoreCwd(props.tab.id).catch(() => {});
     } catch (e) {
       console.error(e);
     } finally {

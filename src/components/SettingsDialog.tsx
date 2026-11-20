@@ -24,6 +24,7 @@ import { general, updateGeneral } from "../stores/general";
 import {
   flushPersistedState,
   importPersistedTabs,
+  normalizeStartupCommand,
   persistedTabsSnapshot,
 } from "../stores/tabs";
 import {
@@ -520,6 +521,9 @@ interface BackupFile {
 
 function BackupPane() {
   const [includePasswords, setIncludePasswords] = createSignal(false);
+  const [includeStartupCommands, setIncludeStartupCommands] = createSignal(false);
+  const [importReview, setImportReview] = createSignal<{ data: Partial<BackupFile>; commands: TabState[] } | null>(null);
+  const [importing, setImporting] = createSignal(false);
   const [status, setStatus] = createSignal<{ kind: "ok" | "err"; msg: string } | null>(null);
   // The native file input is a browser control we cannot style; it is hidden
   // and driven by a real button instead. No drop zone: nothing behind this
@@ -544,6 +548,7 @@ function BackupPane() {
           icon: t.icon ?? null,
           passthrough: t.passthrough,
           cwd: t.cwd ?? null,
+          startup_command: t.startup_command ?? null,
         })),
         active_tab_id: snapshot.active_tab_id,
         connections: (await api.listConnections()).map((c) => ({
@@ -572,44 +577,70 @@ function BackupPane() {
     }
   }
 
-  async function doImport(file: File) {
+  async function runImport(work: () => Promise<void>) {
+    if (importing()) return;
+    setImporting(true);
     setStatus(null);
     try {
-      const text = await file.text();
-      const data = JSON.parse(text) as Partial<BackupFile>;
+      await work();
+    } catch (error) {
+      setStatus({ kind: "err", msg: `Import failed: ${error instanceof Error ? error.message : error}` });
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  function prepareImport(file: File) {
+    return runImport(async () => {
+      const data = JSON.parse(await file.text()) as Partial<BackupFile>;
       if (data.app !== "BOOKSHELL" || data.version !== 1) {
         throw new Error("Not a BOOKSHELL backup file (or unsupported version).");
       }
-      // Connections first so tab.connection_id refs resolve on next reconnect.
-      if (Array.isArray(data.connections)) {
-        for (const c of data.connections) {
-          await api.saveConnection(c);
-        }
-        await loadConnections();
+      data.tabs = Array.isArray(data.tabs)
+        ? data.tabs.map((tab) => ({ ...tab, startup_command: normalizeStartupCommand(tab.startup_command) }))
+        : [];
+      const commands = data.tabs.filter((tab) => !!tab.startup_command);
+      if (commands.length) {
+        setIncludeStartupCommands(false);
+        setImportReview({ data, commands });
+      } else {
+        await applyImport(data, false);
       }
-      if (Array.isArray(data.buttons)) {
-        for (const b of data.buttons) await api.buttonsSave(b);
-      }
-
-      // Imported tabs are restored on restart so live sessions keep running.
-      if (Array.isArray(data.tabs) && data.tabs.length > 0) {
-        await importPersistedTabs(data.tabs, data.active_tab_id ?? null);
-      }
-
-      setStatus({
-        kind: "ok",
-        msg: `Imported ${data.connections?.length ?? 0} connections, ${data.buttons?.length ?? 0} buttons, ${data.tabs?.length ?? 0} tabs. Restart BOOKSHELL to see imported tabs.`,
-      });
-    } catch (e: any) {
-      setStatus({ kind: "err", msg: `Import failed: ${e?.message ?? e}` });
-    }
+    });
   }
+
+  async function applyImport(data: Partial<BackupFile>, includeCommands: boolean) {
+    // Connections first so tab.connection_id refs resolve on next reconnect.
+    if (Array.isArray(data.connections)) {
+      for (const c of data.connections) await api.saveConnection(c);
+      await loadConnections();
+    }
+    if (Array.isArray(data.buttons)) {
+      for (const b of data.buttons) await api.buttonsSave(b);
+    }
+    // Imported tabs are restored on restart so live sessions keep running.
+    if (data.tabs?.length) {
+      const tabs = includeCommands ? data.tabs : data.tabs.map((tab) => ({ ...tab, startup_command: null }));
+      await importPersistedTabs(tabs, data.active_tab_id ?? null);
+    }
+    setImportReview(null);
+    setStatus({
+      kind: "ok",
+      msg: `Imported ${data.connections?.length ?? 0} connections, ${data.buttons?.length ?? 0} buttons, ${data.tabs?.length ?? 0} tabs. Restart BOOKSHELL to see imported tabs.`,
+    });
+  }
+
+  useEscape(() => {
+    if (!importReview()) return false;
+    if (!importing()) setImportReview(null);
+    return true;
+  });
 
   return (
     <div style={paneStackStyle}>
       <div style={{ ...T[12], color: C.text2 }}>
-        Export your tabs, saved connections and command buttons to a JSON file you can move
-        to another machine or check into a dotfiles repo.
+        Export your tabs, saved connections and command buttons to a JSON file.
+        Saved startup commands are included as plain text.
       </div>
 
       <SettingsGroup label="Export">
@@ -644,7 +675,7 @@ function BackupPane() {
             onChange={(e) => {
               const f = e.currentTarget.files?.[0];
               if (f) {
-                doImport(f);
+                void prepareImport(f);
                 e.currentTarget.value = "";
               }
             }}
@@ -653,12 +684,61 @@ function BackupPane() {
           <button
             class="bs-btn"
             onClick={() => fileInput?.click()}
+            disabled={importing() || !!importReview()}
             style={button("secondary", "roomy")}
           >
             <Icon name="upload" size={14} />
             Import backup…
           </button>
         </SettingsRow>
+        <Show when={importReview()}>
+          {(review) => (
+            <SettingsRow stacked>
+              <div style={{ ...T[12], color: C.text2 }}>
+                These tabs have a startup command. Review what will run after the next restart.
+              </div>
+              <ul style={{ ...T[12], padding: `0 0 0 ${S[4]}`, margin: "0", "max-height": "144px", "overflow-y": "auto" }}>
+                <For each={review().commands}>
+                  {(tab) => (
+                    <li style={{ "margin-bottom": S[1], "overflow-wrap": "anywhere" }}>
+                      <strong>{tab.name}</strong>{" "}
+                      <code style={{ color: C.text2, "font-family": FONT.mono, "white-space": "pre-wrap" }}>
+                        {tab.startup_command}
+                      </code>
+                    </li>
+                  )}
+                </For>
+              </ul>
+              <label style={{ display: "flex", "align-items": "center", gap: S[1.5], ...T[12] }}>
+                <input
+                  type="checkbox"
+                  checked={includeStartupCommands()}
+                  onChange={(e) => setIncludeStartupCommands(e.currentTarget.checked)}
+                  disabled={importing()}
+                />
+                Restore startup commands
+              </label>
+              <div style={{ display: "flex", gap: S[2] }}>
+                <button
+                  class="bs-btn"
+                  disabled={importing()}
+                  onClick={() => setImportReview(null)}
+                  style={button("secondary", "roomy")}
+                >
+                  Cancel
+                </button>
+                <button
+                  class="bs-btn"
+                  disabled={importing()}
+                  onClick={() => void runImport(() => applyImport(review().data, includeStartupCommands()))}
+                  style={button("primary", "roomy")}
+                >
+                  Import backup
+                </button>
+              </div>
+            </SettingsRow>
+          )}
+        </Show>
       </SettingsGroup>
 
       <XshellImport />

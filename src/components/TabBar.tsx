@@ -31,6 +31,7 @@ import {
   type TabGroup,
 } from "../stores/tabs";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
+import { StartupCommandDialog } from "./StartupCommandDialog";
 
 interface Props {
   onNew: () => void;
@@ -85,6 +86,7 @@ export function TabBar(props: Props) {
   const [menu, setMenu] = createSignal<{ x: number; y: number; tab: Tab } | null>(null);
   const [groupMenu, setGroupMenu] = createSignal<{ x: number; y: number; group: TabGroup } | null>(null);
   const [renamingId, setRenamingId] = createSignal<string | null>(null);
+  const [startupCommandTabId, setStartupCommandTabId] = createSignal<string | null>(null);
   const [renamingGroupId, setRenamingGroupId] = createSignal<string | null>(null);
   const [dragging, setDragging] = createSignal<DragSource | null>(null);
   const [resizing, setResizing] = createSignal(false);
@@ -266,6 +268,12 @@ export function TabBar(props: Props) {
         disabled: !supportsShellTools(tab),
         sublabel: tab.cwd ? shortCwd(tab.cwd) : undefined,
         onClick: () => openMarkCwd(tab.id),
+      },
+      {
+        icon: "terminal",
+        label: "Startup command…",
+        checked: !!tab.startupCommand,
+        onClick: () => setStartupCommandTabId(tab.id),
       },
       {
         icon: "bot",
@@ -621,6 +629,9 @@ export function TabBar(props: Props) {
             onClose={() => setGroupMenu(null)}
           />
         )}
+      </Show>
+      <Show when={tabs().find((tab) => tab.id === startupCommandTabId())} keyed>
+        {(tab) => <StartupCommandDialog tab={tab} onClose={() => setStartupCommandTabId(null)} />}
       </Show>
     </div>
   );
