@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { api, type Connection } from "../ipc/api";
+import { api, type Connection, type SerialSettings } from "../ipc/api";
 
 const [connections, setConnections] = createSignal<Connection[]>([]);
 
@@ -54,8 +54,33 @@ export async function moveConnection(id: string, delta: -1 | 1) {
   await reorderConnections(id, targetId);
 }
 
-export function newConnectionId(): string {
-  return `conn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+export function newConnection(): Connection {
+  return {
+    id: `conn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: "", kind: "ssh", host: "", port: 22, user: "", auth: "password", password: "",
+    shell: null, cwd: null,
+  };
+}
+
+export const serialWindowsOnly = "Serial connections require BOOKSHELL to run on Windows.";
+export const defaultSerialSettings: SerialSettings = {
+  port: "", baud_rate: 115200, data_bits: 8, parity: "none", stop_bits: 1,
+  flow_control: "none", line_ending: "cr",
+};
+
+export function connectionUnavailable(connection: Connection): boolean {
+  return connection.kind === "serial" && !isWindows();
+}
+
+export function connectionDescription(connection: Connection): string {
+  switch (connection.kind) {
+    case "local": return `local · ${connection.shell ?? defaultLocalShell()}`;
+    case "serial": {
+      const { port, baud_rate } = connection.serial ?? defaultSerialSettings;
+      return `${port || "Serial (COM)"} · ${baud_rate} baud${isWindows() ? "" : " · Windows only"}`;
+    }
+    case "ssh": return `${connection.user}@${connection.host}:${connection.port}`;
+  }
 }
 
 export function isWindows(): boolean {

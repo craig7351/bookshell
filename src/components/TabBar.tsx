@@ -13,6 +13,7 @@ import {
   closeTab,
   dropTab,
   groupById,
+  isSerialTab,
   openMarkCwd,
   removeTabFromGroup,
   renameGroup,
@@ -219,6 +220,7 @@ export function TabBar(props: Props) {
       {
         icon: "map-pin",
         label: tab.cwd ? "Edit cwd" : "Mark cwd…",
+        disabled: isSerialTab(tab),
         sublabel: tab.cwd ? shortCwd(tab.cwd) : undefined,
         onClick: () => openMarkCwd(tab.id),
       },

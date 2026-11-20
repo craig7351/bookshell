@@ -15,7 +15,7 @@ import { filesOpen, filesWidth, setFilesWidth, toggleFiles } from "./stores/file
 import { gitWidth, isGitOpen, setGitWidth, toggleGit } from "./stores/git";
 import { cycleLayout, layoutMode, setLayout } from "./stores/layout";
 import { api, type Connection } from "./ipc/api";
-import { isMac, loadConnections } from "./stores/connections";
+import { connectionUnavailable, isMac, loadConnections } from "./stores/connections";
 import { loadGeneral } from "./stores/general";
 import { closeSearch, openSearch, searchTabId } from "./stores/search";
 import { actionFor } from "./stores/shortcuts";
@@ -31,8 +31,10 @@ import {
   closeTab,
   connectTab,
   connectTabLocal,
+  connectTabSerial,
   flushPersistedState,
   isActiveTabPassthrough,
+  isSerialTab,
   markCwdTabId,
   newTabId,
   reconnectTabFromProfile,
@@ -56,6 +58,10 @@ const LAYOUT_ICON: Record<string, IconName> = {
 };
 
 export default function App() {
+  const shellTabId = () => {
+    const tab = activeTab();
+    return tab && !isSerialTab(tab) ? tab.id : null;
+  };
   const [showDialog, setShowDialog] = createSignal(false);
   // One Settings dialog, opened on a named pane. The CommandBar pencil used
   // to open a separate ButtonEditor modal; it now lands on the same dialog's
@@ -113,7 +119,7 @@ export default function App() {
       const prev = prevStatus.get(tab.id);
       if (tab.status === "connected" && prev !== "connected") {
         const id = tab.id;
-        const shouldAutoOpen = restoredTabIds.has(id) && !!tab.cwd;
+        const shouldAutoOpen = restoredTabIds.has(id) && !!tab.cwd && !isSerialTab(tab);
         if (shouldAutoOpen) {
           setTimeout(() => {
             // Saved cwd is trusted — skip PTY probe, just refresh git with it.
@@ -145,6 +151,8 @@ export default function App() {
         // Give the freshly-mounted xterm instances a tick to settle.
         await new Promise((r) => setTimeout(r, 80));
         for (const id of restoredIds) {
+          const tab = tabs().find((tab) => tab.id === id);
+          if (tab && isSerialTab(tab)) continue;
           // reconnectTabFromProfile auto-connects only when the profile has a
           // saved password; otherwise the tab stays disconnected and the
           // TerminalView's reconnect overlay handles it.
@@ -155,7 +163,7 @@ export default function App() {
       }
     })();
 
-    window.addEventListener("beforeunload", () => flushPersistedState());
+    window.addEventListener("beforeunload", () => { void flushPersistedState().catch(() => {}); });
 
     // Tab cycle / move shortcuts (user-customizable; see stores/shortcuts.ts).
     // Registered in the capture phase so it fires before xterm's textarea
@@ -263,14 +271,17 @@ export default function App() {
   });
 
   async function startConnection(conn: Connection, password: string) {
+    if (connectionUnavailable(conn)) return;
     setShowDialog(false);
     const tabName =
       conn.name ||
-      (conn.kind === "local" ? "local" : `${conn.user}@${conn.host}`);
+      (conn.kind === "serial" ? conn.serial?.port || "Serial (COM)"
+        : conn.kind === "local" ? "local" : `${conn.user}@${conn.host}`);
     const tab = addTab({
       id: newTabId(),
       name: tabName,
       connectionId: conn.id,
+      kind: conn.kind,
       sessionId: null,
       status: "connecting",
       color: conn.color ?? null,
@@ -281,7 +292,9 @@ export default function App() {
     await new Promise((r) => setTimeout(r, 50));
 
     try {
-      if (conn.kind === "local") {
+      if (conn.kind === "serial") {
+        await connectTabSerial(tab.id, conn.serial);
+      } else if (conn.kind === "local") {
         await connectTabLocal(tab.id, {
           shell: conn.shell ?? null,
           cwd: conn.cwd ?? null,
@@ -362,7 +375,7 @@ export default function App() {
 
         {/* right-side toolbar */}
         <div style={{ "margin-left": "auto", display: "flex", gap: S[1], "align-items": "center" }}>
-          <Show when={activeTabId() && (isGitOpen(activeTabId()!) || isSideTermOpen(activeTabId()!) || filesOpen())}>
+          <Show when={shellTabId() && (isGitOpen(shellTabId()!) || isSideTermOpen(shellTabId()!) || filesOpen())}>
             <button class="bs-btn bs-tip" data-tip="Cycle layout" onClick={cycleLayout} style={toolBtn}>
               <Icon name={LAYOUT_ICON[layoutMode()]} size={14} />
               {LAYOUT_LABEL[layoutMode()]}
@@ -375,10 +388,10 @@ export default function App() {
             <button
               class="bs-btn bs-tip"
               data-tip="Side terminal (cwd if marked)"
-              aria-pressed={!!activeTabId() && isSideTermOpen(activeTabId()!)}
-              onClick={() => { const id = activeTabId(); if (id) toggleSideTerm(id); }}
+              aria-pressed={!!shellTabId() && isSideTermOpen(shellTabId()!)}
+              onClick={() => { const id = shellTabId(); if (id) toggleSideTerm(id); }}
               style={segBtn}
-              disabled={!activeTabId()}
+              disabled={!shellTabId()}
             >
               <Icon name="terminal" size={14} />
               Terminal
@@ -386,10 +399,10 @@ export default function App() {
             <button
               class="bs-btn bs-tip"
               data-tip="Toggle git view"
-              aria-pressed={!!activeTabId() && isGitOpen(activeTabId()!)}
-              onClick={() => { const id = activeTabId(); if (id) toggleGit(id); }}
+              aria-pressed={!!shellTabId() && isGitOpen(shellTabId()!)}
+              onClick={() => { const id = shellTabId(); if (id) toggleGit(id); }}
               style={segBtn}
-              disabled={!activeTabId()}
+              disabled={!shellTabId()}
             >
               <Icon name="git-branch" size={14} />
               Git
@@ -397,10 +410,10 @@ export default function App() {
             <button
               class="bs-btn bs-tip"
               data-tip="File browser"
-              aria-pressed={filesOpen()}
-              onClick={() => { if (activeTabId()) toggleFiles(); }}
+              aria-pressed={!!shellTabId() && filesOpen()}
+              onClick={() => { if (shellTabId()) toggleFiles(); }}
               style={segBtn}
-              disabled={!activeTabId()}
+              disabled={!shellTabId()}
             >
               <Icon name="folder" size={14} />
               Files
@@ -490,10 +503,10 @@ export default function App() {
 
             {/* horizontal / vertical: panels render standalone */}
             <Show when={layoutMode() !== "right-split"}>
-              <Show when={activeTabId() && isGitOpen(activeTabId()!)}>
+              <Show when={shellTabId() && isGitOpen(shellTabId()!)}>
                 <GitPanel />
               </Show>
-              <Show when={activeTabId() && filesOpen()}>
+              <Show when={shellTabId() && filesOpen()}>
                 {/* Inline file-browser column with its own resize handle. */}
                 <div
                   class="bs-resize"
@@ -513,13 +526,13 @@ export default function App() {
                   <FileBrowser />
                 </div>
               </Show>
-              <Show when={activeTabId() && isSideTermOpen(activeTabId()!)}>
+              <Show when={shellTabId() && isSideTermOpen(shellTabId()!)}>
                 <SideTerminalPanel />
               </Show>
             </Show>
 
             {/* right-split: panels share a right column */}
-            <Show when={layoutMode() === "right-split" && activeTabId() && (isGitOpen(activeTabId()!) || isSideTermOpen(activeTabId()!) || filesOpen())}>
+            <Show when={layoutMode() === "right-split" && shellTabId() && (isGitOpen(shellTabId()!) || isSideTermOpen(shellTabId()!) || filesOpen())}>
               {/* left-edge drag handle for column width */}
               <div
                 class="bs-resize"

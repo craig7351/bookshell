@@ -54,12 +54,12 @@ fn shell_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
-/// True when this session was opened by local_open_pty (no russh handle).
+/// Only local shell sessions have access to the local filesystem.
 pub(crate) fn is_local_session(state: &AppState, session_id: &str) -> bool {
     state
         .sessions
         .get(session_id)
-        .map(|h| h.session.is_none())
+        .map(|h| matches!(h.transport, crate::ssh::Transport::Local))
         .unwrap_or(false)
 }
 

@@ -3,13 +3,14 @@ import { button, C, H, R, S, T } from "../theme";
 import { Icon, type IconName } from "../icons";
 import { DialogFrame } from "./ui/DialogFrame";
 import { EmptyState } from "./ui/EmptyState";
+import { ConnectionForm } from "./ConnectionForm";
 import {
   connections,
-  defaultLocalShell,
+  connectionDescription,
+  connectionUnavailable,
   deleteConnection,
   moveConnection,
-  newConnectionId,
-  upsertConnection,
+  newConnection,
 } from "../stores/connections";
 import type { Connection } from "../ipc/api";
 
@@ -17,19 +18,6 @@ interface Props {
   onConnect: (conn: Connection, password: string) => void;
   onClose: () => void;
 }
-
-const empty = (): Connection => ({
-  id: newConnectionId(),
-  name: "",
-  kind: "ssh",
-  host: "",
-  port: 22,
-  user: "",
-  auth: "password",
-  password: "",
-  shell: null,
-  cwd: null,
-});
 
 export function ConnectionDialog(props: Props) {
   const [editing, setEditing] = createSignal<Connection | null>(null);
@@ -91,20 +79,12 @@ export function ConnectionDialog(props: Props) {
     setEditing({ ...c });
   }
   function startNew() {
-    setEditing(empty());
-  }
-
-  async function save() {
-    const c = editing();
-    if (!c) return;
-    if (!c.name.trim()) c.name = c.host;
-    await upsertConnection(c);
-    setEditing(null);
+    setEditing(newConnection());
   }
 
   function pickConnection(c: Connection) {
-    if (c.kind === "local") {
-      // Local connections need no credentials; just hand back to caller.
+    if (connectionUnavailable(c)) return;
+    if (c.kind !== "ssh") {
       props.onConnect(c, "");
       return;
     }
@@ -164,6 +144,7 @@ export function ConnectionDialog(props: Props) {
                   tabindex="0"
                   data-conn-idx={i()}
                   aria-selected={i() === selectedIdx()}
+                  aria-disabled={connectionUnavailable(c) || undefined}
                   onFocus={() => setSelectedIdx(i())}
                   onMouseDown={() => setSelectedIdx(i())}
                   onClick={() => pickConnection(c)}
@@ -172,9 +153,7 @@ export function ConnectionDialog(props: Props) {
                   <div style={{ flex: 1, "min-width": 0 }}>
                     <div style={rowTitleStyle}>{c.name}</div>
                     <div style={rowMetaStyle}>
-                      {c.kind === "local"
-                        ? `local · ${c.shell ?? defaultLocalShell()}`
-                        : `${c.user}@${c.host}:${c.port}`}
+                      {connectionDescription(c)}
                     </div>
                   </div>
                   {/* Reorder keeps ▲▼ semantics deliberately: there is no drag
@@ -197,6 +176,7 @@ export function ConnectionDialog(props: Props) {
                       icon="plug"
                       label="Connect"
                       tone="accent"
+                      disabled={connectionUnavailable(c)}
                       onClick={() => pickConnection(c)}
                     />
                     <RowIconButton icon="pencil" label="Edit" onClick={() => startEdit(c)} />
@@ -214,70 +194,8 @@ export function ConnectionDialog(props: Props) {
         </Show>
       </Show>
 
-      <Show when={editing()}>
-        {(c) => (
-          <div style={formStyle}>
-            <label style={labelStyle}>Type</label>
-            <div style={{ display: "flex", gap: S[3], "align-items": "center" }}>
-              <label style={radioStyle}>
-                <input
-                  type="radio"
-                  name="kind"
-                  checked={c().kind === "ssh"}
-                  onChange={() => setEditing({ ...c(), kind: "ssh" })}
-                />
-                SSH (remote)
-              </label>
-              <label style={radioStyle}>
-                <input
-                  type="radio"
-                  name="kind"
-                  checked={c().kind === "local"}
-                  onChange={() => setEditing({ ...c(), kind: "local", shell: c().shell || defaultLocalShell() })}
-                />
-                Local (shell on this machine)
-              </label>
-            </div>
-
-            <label style={labelStyle}>Name</label>
-            <input class="bs-input" style={input} value={c().name} onInput={(e) => setEditing({ ...c(), name: e.currentTarget.value })} />
-
-            <Show when={c().kind === "ssh"}>
-              <label style={labelStyle}>Host</label>
-              <input class="bs-input" style={input} value={c().host} onInput={(e) => setEditing({ ...c(), host: e.currentTarget.value })} />
-              <label style={labelStyle}>Port</label>
-              <input class="bs-input" type="number" style={input} value={c().port} onInput={(e) => setEditing({ ...c(), port: parseInt(e.currentTarget.value) || 22 })} />
-              <label style={labelStyle}>User</label>
-              <input class="bs-input" style={input} value={c().user} onInput={(e) => setEditing({ ...c(), user: e.currentTarget.value })} />
-              <label style={labelStyle}>Password</label>
-              <input class="bs-input" type="password" style={input} placeholder="(leave empty to prompt each time)" value={c().password ?? ""} onInput={(e) => setEditing({ ...c(), password: e.currentTarget.value })} />
-            </Show>
-
-            <Show when={c().kind === "local"}>
-              <label style={labelStyle}>Shell</label>
-              <input
-                class="bs-input"
-                style={input}
-                placeholder={defaultLocalShell()}
-                value={c().shell ?? ""}
-                onInput={(e) => setEditing({ ...c(), shell: e.currentTarget.value || null })}
-              />
-              <label style={labelStyle}>Working dir</label>
-              <input
-                class="bs-input"
-                style={input}
-                placeholder="(default: home directory)"
-                value={c().cwd ?? ""}
-                onInput={(e) => setEditing({ ...c(), cwd: e.currentTarget.value || null })}
-              />
-            </Show>
-
-            <div style={formActionsStyle}>
-              <button class="bs-btn" onClick={() => setEditing(null)} style={button("secondary", "roomy")}>Cancel</button>
-              <button class="bs-btn" onClick={save} style={button("primary", "roomy")}>Save</button>
-            </div>
-          </div>
-        )}
+      <Show when={editing()} keyed>
+        {(connection) => <ConnectionForm initial={connection} onClose={() => setEditing(null)} />}
       </Show>
 
       <Show when={pwPrompt()}>
@@ -401,15 +319,6 @@ const formStyle: JSX.CSSProperties = {
 };
 
 const labelStyle: JSX.CSSProperties = {
-  ...T[12],
-  color: C.text2,
-};
-
-const radioStyle: JSX.CSSProperties = {
-  display: "flex",
-  "align-items": "center",
-  gap: S[1],
-  cursor: "pointer",
   ...T[12],
   color: C.text2,
 };

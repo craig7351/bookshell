@@ -18,13 +18,15 @@ import { api } from "../ipc/api";
 import { registerOsc52 } from "./osc52";
 import {
   bumpFit,
+  isSerialTab,
   onTabClose,
   onTabData,
+  writeTabInput,
   type Tab,
 } from "../stores/tabs";
 import { closeSearch, isSearchOpenFor } from "../stores/search";
 import { general } from "../stores/general";
-import { connections } from "../stores/connections";
+import { connectionDescription, connectionUnavailable, connections, serialWindowsOnly } from "../stores/connections";
 import { connectTab, reconnectTabFromProfile, restoreCwd } from "../stores/tabs";
 
 interface Props {
@@ -155,10 +157,15 @@ export function TerminalView(props: Props) {
 
   const profile = () =>
     connections().find((c) => c.id === props.tab.connectionId) ?? null;
+  const reconnectUnavailable = () => {
+    const connection = profile();
+    return connection !== null && connectionUnavailable(connection);
+  };
   const showReconnectPanel = () =>
     props.tab.status === "disconnected" || props.tab.status === "error";
 
   async function doReconnect() {
+    if (reconnectUnavailable()) return;
     setReconnecting(true);
     try {
       const ok = await reconnectTabFromProfile(props.tab.id);
@@ -364,7 +371,7 @@ export function TerminalView(props: Props) {
     // PNG uploaded to the remote /tmp first and get the remote path.
     // Returns true if an image was found and pasted, false if clipboard had no image.
     const pasteImage = async (): Promise<boolean> => {
-      if (!props.active) return false;
+      if (!props.active || isSerialTab(props.tab)) return false;
       const conn = connections().find((c) => c.id === props.tab.connectionId);
       if (!conn) return false;
       const sid = props.tab.sessionId;
@@ -438,13 +445,12 @@ export function TerminalView(props: Props) {
     );
 
     term.onData((data) => {
-      const sid = props.tab.sessionId;
-      if (sid) api.sshWrite(sid, data).catch(console.error);
+      writeTabInput(props.tab, data).catch(console.error);
     });
 
     term.onResize(({ cols, rows }) => {
       const sid = props.tab.sessionId;
-      if (sid) api.sshResize(sid, cols, rows).catch(console.error);
+      if (sid && !isSerialTab(props.tab)) api.sshResize(sid, cols, rows).catch(console.error);
     });
 
     onTabData(props.tab.id, (bytes) => {
@@ -533,7 +539,7 @@ export function TerminalView(props: Props) {
     let dragUnlisten: UnlistenFn | undefined;
     getCurrentWebview()
       .onDragDropEvent((ev) => {
-        if (!props.active) return;
+        if (!props.active || isSerialTab(props.tab)) return;
         const conn = connections().find((c) => c.id === props.tab.connectionId);
         const isLocal = conn?.kind === "local";
         const t = ev.payload.type;
@@ -586,7 +592,7 @@ export function TerminalView(props: Props) {
   // Depend on termReady so the effect re-runs once onMount has set up `term`.
   createEffect(() => {
     const sid = props.tab.sessionId;
-    if (!sid || !termReady() || !term) return;
+    if (!sid || !termReady() || !term || isSerialTab(props.tab)) return;
     queueMicrotask(() => {
       fit?.fit();
       if (term) api.sshResize(sid, term.cols, term.rows).catch(console.error);
@@ -721,14 +727,15 @@ export function TerminalView(props: Props) {
             <Show when={profile()}>
               {(p) => (
                 <span style={hostChip}>
-                  {p().kind === "local"
-                    ? `local · ${p().shell ?? "default shell"}`
-                    : `${p().user}@${p().host}:${p().port}`}
+                  {connectionDescription(p())}
                 </span>
               )}
             </Show>
             <Show when={props.tab.errorMessage}>
               <span style={errorChip}>{props.tab.errorMessage}</span>
+            </Show>
+            <Show when={reconnectUnavailable()}>
+              <span style={cardHint}>{serialWindowsOnly}</span>
             </Show>
             <Show
               when={profile()}
@@ -736,7 +743,7 @@ export function TerminalView(props: Props) {
             >
               {(p) => (
                 <Show
-                  when={p().kind === "local" || (p().password && p().password!.length > 0)}
+                  when={p().kind !== "ssh" || (p().password && p().password!.length > 0)}
                   fallback={
                     <div style={pwRow}>
                       <input
@@ -766,7 +773,7 @@ export function TerminalView(props: Props) {
                   <button
                     class="bs-btn"
                     onClick={doReconnect}
-                    disabled={reconnecting()}
+                    disabled={reconnecting() || reconnectUnavailable()}
                     style={{ ...button("primary", "roomy"), "margin-top": S[1] }}
                   >
                     <Icon name="refresh-cw" size={14} class={reconnecting() ? "bs-spin" : undefined} />

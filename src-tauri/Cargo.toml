@@ -41,6 +41,7 @@ russh-sftp = "2.1"
 open = "5"
 
 [target."cfg(windows)".dependencies]
+serialport = { version = "4", default-features = false }
 webview2-com = "0.38"
 windows = { version = "0.61", features = [
   "Win32_Foundation",

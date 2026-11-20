@@ -21,6 +21,18 @@ pub enum ConnectionKind {
     #[default]
     Ssh,
     Local,
+    Serial,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SerialSettings {
+    pub port: String,
+    pub baud_rate: u32,
+    pub data_bits: u8,
+    pub parity: String,
+    pub stop_bits: u8,
+    pub flow_control: String,
+    pub line_ending: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,6 +59,8 @@ pub struct Connection {
     /// Local kind only — initial working directory.
     #[serde(default)]
     pub cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub serial: Option<SerialSettings>,
     #[serde(default)]
     pub color: Option<String>,
     #[serde(default)]

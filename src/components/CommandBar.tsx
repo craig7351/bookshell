@@ -1,8 +1,8 @@
 import { createEffect, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
-import { api, type CommandButton } from "../ipc/api";
+import type { CommandButton } from "../ipc/api";
 import { buttons, loadButtons } from "../stores/buttons";
 import { Icon } from "../icons";
-import { activeTab, bumpFit } from "../stores/tabs";
+import { activeTab, bumpFit, isSerialTab, writeTabInput } from "../stores/tabs";
 import { button, C, FONT, H, M, R, S, SH, T } from "../theme";
 
 interface Props {
@@ -85,17 +85,19 @@ export function CommandBar(props: Props) {
       alert("No active connected tab");
       return;
     }
-    let payload = b.command;
-    if (payload.includes("\n")) {
+    const payload = b.command;
+    if (isSerialTab(t)) {
+      await writeTabInput(t, payload + (b.send_enter ? "\r" : ""));
+    } else if (payload.includes("\n")) {
       // multi-line: send each line followed by CR (if send_enter)
       const lines = payload.split("\n");
       for (const line of lines) {
-        await api.sshWrite(t.sessionId, line);
-        await api.sshWrite(t.sessionId, "\r");
+        await writeTabInput(t, line);
+        await writeTabInput(t, "\r");
       }
     } else {
-      await api.sshWrite(t.sessionId, payload);
-      if (b.send_enter) await api.sshWrite(t.sessionId, "\r");
+      await writeTabInput(t, payload);
+      if (b.send_enter) await writeTabInput(t, "\r");
     }
     // Return focus to the terminal so the user can keep typing without an
     // extra click. fitTick effect in Terminal.tsx handles the actual focus.
@@ -104,7 +106,7 @@ export function CommandBar(props: Props) {
 
   function run(b: CommandButton) {
     flash(b.id);
-    send(b);
+    send(b).catch(console.error);
   }
 
   function handleClick(b: CommandButton, el: HTMLElement) {

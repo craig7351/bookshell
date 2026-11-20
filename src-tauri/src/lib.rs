@@ -9,6 +9,7 @@ mod git_watch;
 mod local_pty;
 mod logger;
 mod monitor;
+mod serial;
 mod ssh;
 mod tabs;
 mod webview;
@@ -51,6 +52,8 @@ pub fn run() {
             ssh::ssh_connect,
             ssh::ssh_open_pty,
             local_pty::local_open_pty,
+            serial::serial_list_ports,
+            serial::serial_open,
             ssh::ssh_write,
             ssh::ssh_resize,
             ssh::ssh_disconnect,

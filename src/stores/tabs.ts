@@ -1,7 +1,7 @@
 import { createEffect, createRoot, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
-import { api, type Connection, type TabState, type UnlistenFn } from "../ipc/api";
-import { connections } from "./connections";
+import { api, type Connection, type ConnectionKind, type SerialSettings, type TabState, type UnlistenFn } from "../ipc/api";
+import { connections, isWindows, serialWindowsOnly } from "./connections";
 
 export type TabStatus = "connecting" | "connected" | "disconnected" | "error";
 
@@ -9,6 +9,8 @@ export interface Tab {
   id: string;
   name: string;
   connectionId: string | null;
+  kind?: ConnectionKind;
+  serialLineEnding?: SerialSettings["line_ending"];
   sessionId: string | null;
   status: TabStatus;
   errorMessage?: string;
@@ -58,9 +60,37 @@ export const tabGroups = () => state.groups;
 export const groupById = (id: string): TabGroup | undefined =>
   state.groups.find((g) => g.id === id);
 
+export function isSerialTab(tab: Tab): boolean {
+  return (tab.kind ?? connections().find((connection) => connection.id === tab.connectionId)?.kind) === "serial";
+}
+
+const serialWrites = new Map<string, Promise<void>>();
+
+export function writeTabInput(tab: Tab, data: string): Promise<void> {
+  const sid = tab.sessionId;
+  if (!sid) return Promise.resolve();
+  if (!isSerialTab(tab)) return api.sshWrite(sid, data);
+  if (tab.status !== "connected") return Promise.resolve();
+
+  const ending = tab.serialLineEnding === "lf" ? "\n" : tab.serialLineEnding === "crlf" ? "\r\n" : "\r";
+  const payload = data.replace(/\r\n|\r|\n/g, ending);
+  const previous = serialWrites.get(sid) ?? Promise.resolve();
+  const write = previous.catch(() => {}).then(async () => {
+    if (tab.sessionId === sid && tab.status === "connected") await api.sshWrite(sid, payload);
+  });
+  serialWrites.set(sid, write);
+  const release = () => {
+    if (serialWrites.get(sid) === write) serialWrites.delete(sid);
+  };
+  void write.then(release, release);
+  return write;
+}
+
 const [markCwdTabId, setMarkCwdTabId] = createSignal<string | null>(null);
 export { markCwdTabId };
 export function openMarkCwd(tabId: string) {
+  const tab = state.tabs.find((tab) => tab.id === tabId);
+  if (!tab || isSerialTab(tab)) return;
   setMarkCwdTabId(tabId);
 }
 export function closeMarkCwd() {
@@ -68,6 +98,10 @@ export function closeMarkCwd() {
 }
 
 const sessionUnlisteners = new Map<string, UnlistenFn[]>();
+function stopSessionListeners(tabId: string) {
+  sessionUnlisteners.get(tabId)?.splice(0).forEach((unlisten) => unlisten());
+  sessionUnlisteners.delete(tabId);
+}
 const dataListeners = new Map<string, (bytes: Uint8Array) => void>();
 const closeListeners = new Map<string, (reason: string) => void>();
 export function onTabData(tabId: string, cb: (bytes: Uint8Array) => void) {
@@ -157,7 +191,7 @@ export function setTabGitWidth(id: string, width: number) {
 
 export async function captureCwd(tabId: string): Promise<string | null> {
   const t = state.tabs.find((x) => x.id === tabId);
-  if (!t || !t.sessionId || t.status !== "connected") return null;
+  if (!t || !t.sessionId || t.status !== "connected" || isSerialTab(t)) return null;
 
   const profile = connections().find((c) => c.id === t.connectionId);
 
@@ -200,7 +234,7 @@ function shellTypeForTab(tabId: string): ShellKind {
  *  Used by Mark cwd → Auto-detect, where the user explicitly asked for it. */
 export async function captureCwdViaPty(tabId: string): Promise<string | null> {
   const t = state.tabs.find((x) => x.id === tabId);
-  if (!t || !t.sessionId || t.status !== "connected") return null;
+  if (!t || !t.sessionId || t.status !== "connected" || isSerialTab(t)) return null;
   const sid = t.sessionId;
   const kind = shellTypeForTab(tabId);
 
@@ -267,7 +301,7 @@ export async function captureCwdViaPty(tabId: string): Promise<string | null> {
  *  No-op when cwd is unset. */
 export async function restoreCwd(tabId: string) {
   const t0 = state.tabs.find((x) => x.id === tabId);
-  if (!t0 || !t0.cwd || !t0.sessionId) return;
+  if (!t0 || !t0.cwd || !t0.sessionId || isSerialTab(t0)) return;
   const sid0 = t0.sessionId;
   await new Promise((r) => setTimeout(r, 500));
   // Re-check that the same session is still alive.
@@ -442,9 +476,7 @@ export async function closeTab(id: string) {
   if (t?.sessionId) {
     await api.sshDisconnect(t.sessionId).catch(() => {});
   }
-  const ul = sessionUnlisteners.get(id);
-  ul?.forEach((u) => u());
-  sessionUnlisteners.delete(id);
+  stopSessionListeners(id);
   dataListeners.delete(id);
   closeListeners.delete(id);
 
@@ -477,7 +509,7 @@ export async function connectTab(
     rows: number;
   },
 ) {
-  updateTab(tabId, { status: "connecting", errorMessage: undefined });
+  updateTab(tabId, { kind: "ssh", status: "connecting", errorMessage: undefined });
   try {
     const sid = await api.sshConnect(args);
     updateTab(tabId, { status: "connected", sessionId: sid });
@@ -502,7 +534,7 @@ export async function connectTabLocal(
   tabId: string,
   args: { shell?: string | null; cwd?: string | null; cols: number; rows: number },
 ) {
-  updateTab(tabId, { status: "connecting", errorMessage: undefined });
+  updateTab(tabId, { kind: "local", status: "connecting", errorMessage: undefined });
   try {
     const sid = await api.localOpenPty(args);
     updateTab(tabId, { status: "connected", sessionId: sid });
@@ -521,6 +553,51 @@ export async function connectTabLocal(
   }
 }
 
+export async function connectTabSerial(tabId: string, settings: SerialSettings | null | undefined) {
+  const configError = !isWindows() ? serialWindowsOnly : !settings?.port ? "Choose a COM port in the connection settings." : null;
+  if (configError || !settings) {
+    updateTab(tabId, { status: "error", errorMessage: configError ?? "Missing serial settings." });
+    return;
+  }
+  const sid = crypto.randomUUID();
+  const current = () => state.tabs.find((tab) => tab.id === tabId)?.sessionId === sid;
+  const listeners: UnlistenFn[] = [];
+  const dispose = () => {
+    if (sessionUnlisteners.get(tabId) === listeners) stopSessionListeners(tabId);
+    else listeners.splice(0).forEach((unlisten) => unlisten());
+  };
+  stopSessionListeners(tabId);
+  updateTab(tabId, { kind: "serial", status: "connecting", sessionId: sid, serialLineEnding: settings.line_ending, errorMessage: undefined });
+  try {
+    // Subscribe before opening so the first device output can reach xterm.
+    listeners.push(await api.onSshData(sid, (bytes) => {
+      if (current()) dataListeners.get(tabId)?.(bytes);
+    }));
+    listeners.push(await api.onSshClose(sid, (reason) => {
+      if (current()) {
+        updateTab(tabId, { status: "disconnected", sessionId: null, errorMessage: reason });
+        closeListeners.get(tabId)?.(reason);
+      }
+      dispose();
+    }));
+    if (!current()) {
+      dispose();
+      return;
+    }
+    sessionUnlisteners.set(tabId, listeners);
+    await api.serialOpen(sid, settings);
+    if (!current()) {
+      await api.sshDisconnect(sid);
+      return;
+    }
+    updateTab(tabId, { status: "connected" });
+  } catch (error) {
+    dispose();
+    if (current()) updateTab(tabId, { status: "error", sessionId: null, errorMessage: String(error) });
+    throw error;
+  }
+}
+
 export async function disconnectTab(tabId: string) {
   const t = state.tabs.find((x) => x.id === tabId);
   if (t?.sessionId) {
@@ -536,6 +613,10 @@ export async function reconnectTabFromProfile(tabId: string): Promise<boolean> {
   if (!t || !t.connectionId) return false;
   const profile = connections().find((c) => c.id === t.connectionId);
   if (!profile) return false;
+  if (profile.kind === "serial") {
+    await connectTabSerial(tabId, profile.serial);
+    return true;
+  }
   if (profile.kind === "local") {
     // Local PTYs always reconnect — no credentials to wait on. Prefer the
     // tab's 📍 marked cwd; fall back to the profile's default cwd. The PTY
@@ -566,14 +647,15 @@ export async function reconnectTabFromProfile(tabId: string): Promise<boolean> {
 
 let saveTimer: number | undefined;
 let restoring = true;
+let savingTabs: Promise<void> | undefined;
+let importedTabs: { tabs: Map<string, TabState>; activeTabId: string | null } | undefined;
 
-function snapshot(): {
+export function persistedTabsSnapshot(): {
   tabs: TabState[];
   active_tab_id: string | null;
   groups: { id: string; name: string; collapsed: boolean; color: string | null }[];
 } {
-  return {
-    tabs: state.tabs.map((t) => ({
+  const tabs: TabState[] = state.tabs.map((t) => ({
       id: t.id,
       name: t.name,
       connection_id: t.connectionId,
@@ -583,8 +665,14 @@ function snapshot(): {
       cwd: t.cwd ?? null,
       git_width: t.gitWidth ?? null,
       group_id: t.groupId ?? null,
-    })),
-    active_tab_id: state.activeTabId,
+  }));
+  const merged = new Map(tabs.map((tab) => [tab.id, tab]));
+  // Pending imports stay in each disk snapshot until the next startup. The
+  // live tabs retain their sessions, even for IDs replaced by the backup.
+  for (const [id, tab] of importedTabs?.tabs ?? []) merged.set(id, tab);
+  return {
+    tabs: Array.from(merged.values()),
+    active_tab_id: importedTabs?.activeTabId ?? state.activeTabId,
     groups: state.groups.map((g) => ({
       id: g.id,
       name: g.name,
@@ -594,11 +682,36 @@ function snapshot(): {
   };
 }
 
+function saveTabs() {
+  const snapshot = persistedTabsSnapshot();
+  const save = savingTabs
+    ? savingTabs.catch(() => {}).then(() => api.tabsSaveState(snapshot))
+    : api.tabsSaveState(snapshot);
+  savingTabs = save;
+  const clear = () => { if (savingTabs === save) savingTabs = undefined; };
+  void save.then(clear, clear);
+  return save;
+}
+
+export async function importPersistedTabs(tabs: TabState[], activeTabId: string | null) {
+  const previous = importedTabs;
+  const merged = new Map(previous?.tabs);
+  for (const tab of tabs) merged.set(tab.id, tab);
+  const next = { tabs: merged, activeTabId: activeTabId ?? previous?.activeTabId ?? null };
+  importedTabs = next;
+  try {
+    await flushPersistedState();
+  } catch (error) {
+    if (importedTabs === next) importedTabs = previous;
+    throw error;
+  }
+}
+
 function scheduleSave() {
   if (restoring) return;
   if (saveTimer !== undefined) clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => {
-    api.tabsSaveState(snapshot()).catch((e) => console.warn("tabs save", e));
+    saveTabs().catch((e) => console.warn("tabs save", e));
     saveTimer = undefined;
   }, 400);
 }
@@ -691,7 +804,7 @@ export function flushPersistedState() {
     clearTimeout(saveTimer);
     saveTimer = undefined;
   }
-  api.tabsSaveState(snapshot()).catch(() => {});
+  return saveTabs();
 }
 
 export type { Connection };

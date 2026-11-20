@@ -2,7 +2,17 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export type AuthMethod = "password";
-export type ConnectionKind = "ssh" | "local";
+export type ConnectionKind = "ssh" | "local" | "serial";
+
+export interface SerialSettings {
+  port: string;
+  baud_rate: number;
+  data_bits: 5 | 6 | 7 | 8;
+  parity: "none" | "even" | "odd";
+  stop_bits: 1 | 2;
+  flow_control: "none" | "hardware" | "software";
+  line_ending: "cr" | "lf" | "crlf";
+}
 
 /** Decode a base64 string (terminal output payload) into raw bytes. */
 function b64ToBytes(b64: string): Uint8Array {
@@ -26,6 +36,7 @@ export interface Connection {
   shell?: string | null;
   /** Local-only: initial working directory. */
   cwd?: string | null;
+  serial?: SerialSettings | null;
   color?: string | null;
   icon?: string | null;
 }
@@ -66,6 +77,10 @@ export const api = {
     cols: number;
     rows: number;
   }) => invoke<string>("local_open_pty", params),
+
+  serialListPorts: () => invoke<string[]>("serial_list_ports"),
+  serialOpen: (sessionId: string, settings: SerialSettings) =>
+    invoke<void>("serial_open", { sessionId, settings }),
 
   sshWrite: (sessionId: string, data: string) =>
     invoke<void>("ssh_write", { sessionId, data }),

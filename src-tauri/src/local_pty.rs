@@ -199,6 +199,7 @@ pub async fn local_open_pty(
 
     let handle = SessionHandle {
         tx: cmd_tx,
+        transport: crate::ssh::Transport::Local,
         session: None,
         is_primary: true,
     };

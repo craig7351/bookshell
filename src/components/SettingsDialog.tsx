@@ -14,22 +14,23 @@ import {
 } from "../theme";
 import { Icon, type IconName } from "../icons";
 import { AppearancePane } from "./AppearancePane";
+import { ConnectionForm } from "./ConnectionForm";
 import { DialogFrame } from "./ui/DialogFrame";
 import { settingsField as field, SettingsGroup, SettingsRow } from "./ui/SettingsGroup";
 import { EmptyState } from "./ui/EmptyState";
 import { Notice } from "./ui/Notice";
 import { general, updateGeneral } from "../stores/general";
 import {
-  activeTabId,
   flushPersistedState,
-  tabs as allTabs,
+  importPersistedTabs,
+  persistedTabsSnapshot,
 } from "../stores/tabs";
 import {
   connections,
+  connectionDescription,
   deleteConnection,
   loadConnections,
-  newConnectionId,
-  upsertConnection,
+  newConnection,
 } from "../stores/connections";
 import {
   buttons,
@@ -528,22 +529,22 @@ function BackupPane() {
   async function doExport() {
     setStatus(null);
     try {
-      // Persist current tab state synchronously before snapshotting.
-      flushPersistedState();
+      await flushPersistedState();
+      const snapshot = persistedTabsSnapshot();
       const file: BackupFile = {
         version: 1,
         app: "BOOKSHELL",
         exported_at: new Date().toISOString(),
-        tabs: allTabs().map((t) => ({
+        tabs: snapshot.tabs.map((t) => ({
           id: t.id,
           name: t.name,
-          connection_id: t.connectionId,
+          connection_id: t.connection_id,
           color: t.color ?? null,
           icon: t.icon ?? null,
           passthrough: t.passthrough,
           cwd: t.cwd ?? null,
         })),
-        active_tab_id: activeTabId(),
+        active_tab_id: snapshot.active_tab_id,
         connections: (await api.listConnections()).map((c) => ({
           ...c,
           password: includePasswords() ? c.password ?? null : null,
@@ -578,31 +579,20 @@ function BackupPane() {
       if (data.app !== "BOOKSHELL" || data.version !== 1) {
         throw new Error("Not a BOOKSHELL backup file (or unsupported version).");
       }
-      let added = 0;
-
       // Connections first so tab.connection_id refs resolve on next reconnect.
       if (Array.isArray(data.connections)) {
         for (const c of data.connections) {
           await api.saveConnection(c);
-          added++;
         }
+        await loadConnections();
       }
-      let connCount = added;
       if (Array.isArray(data.buttons)) {
         for (const b of data.buttons) await api.buttonsSave(b);
       }
 
-      // Tabs: merge into the persisted tabs.toml directly. We don't mutate
-      // the live in-memory tab list — user must restart to pick up imported
-      // tabs (avoids tearing down active SSH sessions).
+      // Imported tabs are restored on restart so live sessions keep running.
       if (Array.isArray(data.tabs) && data.tabs.length > 0) {
-        const current = await api.tabsLoadState();
-        const existing = new Map((current.tabs ?? []).map((t) => [t.id, t]));
-        for (const t of data.tabs) existing.set(t.id, t);
-        await api.tabsSaveState({
-          tabs: Array.from(existing.values()),
-          active_tab_id: data.active_tab_id ?? current.active_tab_id ?? null,
-        });
+        await importPersistedTabs(data.tabs, data.active_tab_id ?? null);
       }
 
       setStatus({
@@ -700,25 +690,7 @@ function ConnectionsPane() {
     setEditing({ ...c });
   }
   function startNew() {
-    setEditing({
-      id: newConnectionId(),
-      name: "",
-      kind: "ssh",
-      host: "",
-      port: 22,
-      user: "",
-      auth: "password",
-      password: "",
-      shell: null,
-      cwd: null,
-    });
-  }
-  async function save() {
-    const c = editing();
-    if (!c) return;
-    if (!c.name.trim()) c.name = c.host;
-    await upsertConnection(c);
-    setEditing(null);
+    setEditing(newConnection());
   }
 
   return (
@@ -760,7 +732,7 @@ function ConnectionsPane() {
                   <div style={{ flex: 1, "min-width": 0 }}>
                     <div style={rowTitleStyle}>{c.name}</div>
                     <div style={rowMetaStyle}>
-                      {c.user}@{c.host}:{c.port}
+                      {connectionDescription(c)}
                     </div>
                   </div>
                   <div class="bs-row-actions">
@@ -783,32 +755,8 @@ function ConnectionsPane() {
         </Show>
       </Show>
 
-      <Show when={editing()}>
-        {(c) => (
-          <SettingsGroup label="Connection">
-            <SettingsRow label="Name">
-              <input class="bs-input" style={field()} value={c().name} onInput={(e) => setEditing({ ...c(), name: e.currentTarget.value })} />
-            </SettingsRow>
-            <SettingsRow label="Host">
-              <input class="bs-input" style={field()} value={c().host} onInput={(e) => setEditing({ ...c(), host: e.currentTarget.value })} />
-            </SettingsRow>
-            <SettingsRow label="Port">
-              <input class="bs-input" type="number" style={field("100px")} value={c().port} onInput={(e) => setEditing({ ...c(), port: parseInt(e.currentTarget.value) || 22 })} />
-            </SettingsRow>
-            <SettingsRow label="User">
-              <input class="bs-input" style={field()} value={c().user} onInput={(e) => setEditing({ ...c(), user: e.currentTarget.value })} />
-            </SettingsRow>
-            <SettingsRow label="Password">
-              <input class="bs-input" type="password" style={field()} placeholder="(leave empty to prompt each time)" value={c().password ?? ""} onInput={(e) => setEditing({ ...c(), password: e.currentTarget.value })} />
-            </SettingsRow>
-            <SettingsRow>
-              <div style={formActionsStyle}>
-                <button class="bs-btn" onClick={() => setEditing(null)} style={button("secondary", "roomy")}>Cancel</button>
-                <button class="bs-btn" onClick={save} style={button("primary", "roomy")}>Save</button>
-              </div>
-            </SettingsRow>
-          </SettingsGroup>
-        )}
+      <Show when={editing()} keyed>
+        {(connection) => <ConnectionForm initial={connection} onClose={() => setEditing(null)} />}
       </Show>
     </div>
   );

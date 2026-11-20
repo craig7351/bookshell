@@ -10,15 +10,21 @@ use tokio::sync::{mpsc, Mutex};
 
 pub struct SessionHandle {
     pub tx: mpsc::Sender<Cmd>,
-    /// `Some` only for SSH sessions; `None` for local PTYs which don't have
-    /// a russh Handle to share. `run_exec` and other SSH-only helpers refuse
-    /// to operate on a None session.
+    pub transport: Transport,
+    /// Only SSH sessions have a russh Handle to share.
     pub session: Option<Arc<Mutex<Handle<Client>>>>,
     /// True for the primary session created by ssh_connect; false for child
     /// PTYs sharing the same authenticated session (side terminals).
     /// Closing a non-primary handle only closes its channel, never the
     /// underlying SSH connection.
     pub is_primary: bool,
+}
+
+pub enum Transport {
+    Ssh,
+    Local,
+    #[cfg(windows)]
+    Serial(crate::serial::SerialShutdown),
 }
 
 pub struct ExecResult {
@@ -296,6 +302,7 @@ pub async fn ssh_connect(
 
     let handle = SessionHandle {
         tx: cmd_tx.clone(),
+        transport: Transport::Ssh,
         session: Some(session_arc.clone()),
         is_primary: true,
     };
@@ -379,6 +386,7 @@ pub async fn ssh_open_pty(
 
     let handle = SessionHandle {
         tx: cmd_tx.clone(),
+        transport: Transport::Ssh,
         session: Some(parent_session.clone()),
         is_primary: false,
     };
@@ -411,7 +419,7 @@ pub async fn ssh_open_pty(
 /// payload a compact JSON string (~1.33x) instead of Tauri's default
 /// `Vec<u8>` → JSON number-array encoding (~3-10x size + per-byte parse on the
 /// UI thread), which was the main cause of UI freezes under heavy output.
-fn emit_b64(app: &AppHandle, event: &str, bytes: &[u8]) {
+pub(crate) fn emit_b64(app: &AppHandle, event: &str, bytes: &[u8]) {
     use base64::Engine;
     let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
     let _ = app.emit(event, encoded);
@@ -529,12 +537,12 @@ pub async fn ssh_write(
     session_id: String,
     data: String,
 ) -> Result<(), String> {
-    let entry = state
+    let tx = state
         .sessions
         .get(&session_id)
+        .map(|entry| entry.tx.clone())
         .ok_or_else(|| "session not found".to_string())?;
-    entry
-        .tx
+    tx
         .send(Cmd::Write(data.into_bytes()))
         .await
         .map_err(|e| format!("send: {}", e))
@@ -547,12 +555,12 @@ pub async fn ssh_resize(
     cols: u32,
     rows: u32,
 ) -> Result<(), String> {
-    let entry = state
+    let tx = state
         .sessions
         .get(&session_id)
+        .map(|entry| entry.tx.clone())
         .ok_or_else(|| "session not found".to_string())?;
-    entry
-        .tx
+    tx
         .send(Cmd::Resize(cols, rows))
         .await
         .map_err(|e| format!("send: {}", e))
@@ -564,6 +572,11 @@ pub async fn ssh_disconnect(
     session_id: String,
 ) -> Result<(), String> {
     if let Some((_, handle)) = state.sessions.remove(&session_id) {
+        #[cfg(windows)]
+        if let Transport::Serial(shutdown) = handle.transport {
+            shutdown.close().await;
+            return Ok(());
+        }
         let _ = handle.tx.send(Cmd::Close).await;
     }
     Ok(())
