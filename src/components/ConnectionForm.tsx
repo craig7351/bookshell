@@ -1,6 +1,6 @@
 import { createResource, createSignal, createUniqueId, For, Show } from "solid-js";
 import { api, type Connection, type ConnectionKind, type SerialSettings } from "../ipc/api";
-import { defaultLocalShell, defaultSerialSettings, isWindows, serialWindowsOnly, upsertConnection } from "../stores/connections";
+import { defaultLocalShell, defaultSerialSettings, defaultTelnetPort, isWindows, serialWindowsOnly, upsertConnection } from "../stores/connections";
 import { button, S } from "../theme";
 import { Notice } from "./ui/Notice";
 import { settingsField, SettingsGroup, SettingsRow } from "./ui/SettingsGroup";
@@ -36,7 +36,8 @@ export function ConnectionForm(props: { initial: Connection; onClose: () => void
 
   function chooseKind(kind: ConnectionKind) {
     setError(null);
-    update({ kind });
+    const port = kind === "telnet" ? defaultTelnetPort : draft().port;
+    update({ kind, port: kind === "ssh" && port === defaultTelnetPort ? 22 : port });
   }
 
   async function save(event: SubmitEvent) {
@@ -62,6 +63,17 @@ export function ConnectionForm(props: { initial: Connection; onClose: () => void
     } else {
       connection.serial = null;
     }
+    if (connection.kind === "telnet") {
+      connection.host = connection.host.trim();
+      if (!connection.host || !Number.isInteger(connection.port) || connection.port < 1 || connection.port > 65535) {
+        setError("Enter a Telnet host and a valid port.");
+        return;
+      }
+      connection.user = "";
+      connection.password = null;
+      connection.shell = null;
+      connection.cwd = null;
+    }
     connection.name = connection.name.trim() || (connection.kind === "serial"
       ? connection.serial?.port || "Serial (COM)"
       : connection.kind === "local" ? "Local" : connection.host);
@@ -82,7 +94,7 @@ export function ConnectionForm(props: { initial: Connection; onClose: () => void
       <SettingsGroup label="Connection">
         <SettingsRow label="Type" hint={canUseSerial ? undefined : serialWindowsOnly}>
           <div role="group" aria-label="Connection type" style={{ display: "flex", gap: S[2], "flex-wrap": "wrap" }}>
-            <For each={[["ssh", "SSH"], ["local", "Local"], ["serial", canUseSerial ? "Serial (COM)" : "Serial (COM) · Windows only"]] as const}>
+            <For each={[["ssh", "SSH"], ["telnet", "Telnet"], ["local", "Local"], ["serial", canUseSerial ? "Serial (COM)" : "Serial (COM) · Windows only"]] as const}>
               {([kind, label]) => (
                 <label style={{ display: "inline-flex", gap: S[1], "align-items": "center" }}>
                   <input
@@ -102,13 +114,15 @@ export function ConnectionForm(props: { initial: Connection; onClose: () => void
           <input id={`${prefix}-name`} class="bs-input" style={settingsField()} value={draft().name} onInput={(e) => update({ name: e.currentTarget.value })} />
         </SettingsRow>
 
-        <Show when={draft().kind === "ssh"}>
-          <SettingsRow label={<label for={`${prefix}-host`}>Host</label>}>
-            <input id={`${prefix}-host`} class="bs-input" style={settingsField()} value={draft().host} onInput={(e) => update({ host: e.currentTarget.value })} />
+        <Show when={draft().kind === "ssh" || draft().kind === "telnet"}>
+          <SettingsRow label={<label for={`${prefix}-host`}>Host</label>} hint={draft().kind === "telnet" ? "Telnet sends terminal input and login details in plaintext." : undefined}>
+            <input id={`${prefix}-host`} class="bs-input" required={draft().kind === "telnet"} style={settingsField()} value={draft().host} onInput={(e) => update({ host: e.currentTarget.value })} />
           </SettingsRow>
           <SettingsRow label={<label for={`${prefix}-port`}>Port</label>}>
-            <input id={`${prefix}-port`} class="bs-input" type="number" style={settingsField("100px")} value={draft().port} onInput={(e) => update({ port: parseInt(e.currentTarget.value) || 22 })} />
+            <input id={`${prefix}-port`} class="bs-input" type="number" min={1} max={65535} required={draft().kind === "telnet"} style={settingsField("100px")} value={draft().port || ""} onInput={(e) => update({ port: e.currentTarget.valueAsNumber || (draft().kind === "ssh" ? 22 : 0) })} />
           </SettingsRow>
+        </Show>
+        <Show when={draft().kind === "ssh"}>
           <SettingsRow label={<label for={`${prefix}-user`}>User</label>}>
             <input id={`${prefix}-user`} class="bs-input" style={settingsField()} value={draft().user} onInput={(e) => update({ user: e.currentTarget.value })} />
           </SettingsRow>

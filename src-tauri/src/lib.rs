@@ -12,6 +12,7 @@ mod monitor;
 mod serial;
 mod ssh;
 mod tabs;
+mod telnet;
 mod webview;
 
 use dashmap::DashMap;
@@ -54,6 +55,7 @@ pub fn run() {
             local_pty::local_open_pty,
             serial::serial_list_ports,
             serial::serial_open,
+            telnet::telnet_open,
             ssh::ssh_write,
             ssh::ssh_resize,
             ssh::ssh_disconnect,

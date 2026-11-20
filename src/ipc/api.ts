@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export type AuthMethod = "password";
-export type ConnectionKind = "ssh" | "local" | "serial";
+export type ConnectionKind = "ssh" | "local" | "serial" | "telnet";
 
 export interface SerialSettings {
   port: string;
@@ -81,6 +81,9 @@ export const api = {
   serialListPorts: () => invoke<string[]>("serial_list_ports"),
   serialOpen: (sessionId: string, settings: SerialSettings) =>
     invoke<void>("serial_open", { sessionId, settings }),
+
+  telnetOpen: (sessionId: string, host: string, port: number) =>
+    invoke<void>("telnet_open", { sessionId, host, port }),
 
   sshWrite: (sessionId: string, data: string) =>
     invoke<void>("ssh_write", { sessionId, data }),

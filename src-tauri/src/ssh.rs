@@ -23,6 +23,7 @@ pub struct SessionHandle {
 pub enum Transport {
     Ssh,
     Local,
+    Telnet(tokio::sync::oneshot::Sender<()>),
     #[cfg(windows)]
     Serial(crate::serial::SerialShutdown),
 }
@@ -432,8 +433,15 @@ pub(crate) fn emit_b64(app: &AppHandle, event: &str, bytes: &[u8]) {
 /// read, keeping the webview main thread responsive. Dropping the sender
 /// flushes the tail and ends the task.
 pub fn spawn_output_coalescer(app: AppHandle, event: String) -> mpsc::UnboundedSender<Vec<u8>> {
+    spawn_output_coalescer_with_completion(app, event).0
+}
+
+pub(crate) fn spawn_output_coalescer_with_completion(
+    app: AppHandle,
+    event: String,
+) -> (mpsc::UnboundedSender<Vec<u8>>, tokio::task::JoinHandle<()>) {
     let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
-    tokio::spawn(async move {
+    let task = tokio::spawn(async move {
         const MAX_BUF: usize = 64 * 1024;
         let mut buf: Vec<u8> = Vec::new();
         let mut ticker = tokio::time::interval(Duration::from_millis(16));
@@ -464,7 +472,7 @@ pub fn spawn_output_coalescer(app: AppHandle, event: String) -> mpsc::UnboundedS
             }
         }
     });
-    tx
+    (tx, task)
 }
 
 async fn run_session(
@@ -572,12 +580,12 @@ pub async fn ssh_disconnect(
     session_id: String,
 ) -> Result<(), String> {
     if let Some((_, handle)) = state.sessions.remove(&session_id) {
-        #[cfg(windows)]
-        if let Transport::Serial(shutdown) = handle.transport {
-            shutdown.close().await;
-            return Ok(());
+        match handle.transport {
+            Transport::Telnet(cancel) => { let _ = cancel.send(()); }
+            #[cfg(windows)]
+            Transport::Serial(shutdown) => shutdown.close().await,
+            Transport::Ssh | Transport::Local => { let _ = handle.tx.send(Cmd::Close).await; }
         }
-        let _ = handle.tx.send(Cmd::Close).await;
     }
     Ok(())
 }

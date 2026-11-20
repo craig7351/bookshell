@@ -18,9 +18,10 @@ import { api } from "../ipc/api";
 import { registerOsc52 } from "./osc52";
 import {
   bumpFit,
-  isSerialTab,
   onTabClose,
   onTabData,
+  supportsShellTools,
+  tabConnectionKind,
   writeTabInput,
   type Tab,
 } from "../stores/tabs";
@@ -163,6 +164,10 @@ export function TerminalView(props: Props) {
   };
   const showReconnectPanel = () =>
     props.tab.status === "disconnected" || props.tab.status === "error";
+  const canSyncTerminalSize = () => {
+    const kind = tabConnectionKind(props.tab);
+    return kind !== "serial" && (kind !== "telnet" || props.tab.status === "connected");
+  };
 
   async function doReconnect() {
     if (reconnectUnavailable()) return;
@@ -371,7 +376,7 @@ export function TerminalView(props: Props) {
     // PNG uploaded to the remote /tmp first and get the remote path.
     // Returns true if an image was found and pasted, false if clipboard had no image.
     const pasteImage = async (): Promise<boolean> => {
-      if (!props.active || isSerialTab(props.tab)) return false;
+      if (!props.active || !supportsShellTools(props.tab)) return false;
       const conn = connections().find((c) => c.id === props.tab.connectionId);
       if (!conn) return false;
       const sid = props.tab.sessionId;
@@ -450,7 +455,7 @@ export function TerminalView(props: Props) {
 
     term.onResize(({ cols, rows }) => {
       const sid = props.tab.sessionId;
-      if (sid && !isSerialTab(props.tab)) api.sshResize(sid, cols, rows).catch(console.error);
+      if (sid && canSyncTerminalSize()) api.sshResize(sid, cols, rows).catch(console.error);
     });
 
     onTabData(props.tab.id, (bytes) => {
@@ -539,7 +544,7 @@ export function TerminalView(props: Props) {
     let dragUnlisten: UnlistenFn | undefined;
     getCurrentWebview()
       .onDragDropEvent((ev) => {
-        if (!props.active || isSerialTab(props.tab)) return;
+        if (!props.active || !supportsShellTools(props.tab)) return;
         const conn = connections().find((c) => c.id === props.tab.connectionId);
         const isLocal = conn?.kind === "local";
         const t = ev.payload.type;
@@ -592,10 +597,12 @@ export function TerminalView(props: Props) {
   // Depend on termReady so the effect re-runs once onMount has set up `term`.
   createEffect(() => {
     const sid = props.tab.sessionId;
-    if (!sid || !termReady() || !term || isSerialTab(props.tab)) return;
+    if (!sid || !termReady() || !term || !canSyncTerminalSize()) return;
     queueMicrotask(() => {
       fit?.fit();
-      if (term) api.sshResize(sid, term.cols, term.rows).catch(console.error);
+      if (term && props.tab.sessionId === sid && canSyncTerminalSize()) {
+        api.sshResize(sid, term.cols, term.rows).catch(console.error);
+      }
     });
   });
 

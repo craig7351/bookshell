@@ -9,6 +9,7 @@ SSH terminal for AI agents — a Tauri 2 + SolidJS desktop app with multi-tab xt
 ## Features
 
 - Multi-tab SSH and local shell sessions (xterm.js + WebGL renderer)
+- **Plaintext Telnet connections** on Windows, Linux and macOS. In Connect → New, choose Telnet and enter a host and port (default 23). Sign in from the terminal tab.
 - **Serial (COM) — Windows only.** In Connect → New, choose Serial (COM), then select a local COM port and configure its baud rate and line ending. Ubuntu retains imported Serial profiles for use on Windows. Platform support depends on the computer running BOOKSHELL.
 - Left tabs remember their working directory — auto-`cd` back on next launch
 - Drag-and-drop tab reordering in the left sidebar

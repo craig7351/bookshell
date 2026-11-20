@@ -2,7 +2,7 @@ import { createEffect, createSignal, For, onCleanup, onMount, Show, type JSX } f
 import type { CommandButton } from "../ipc/api";
 import { buttons, loadButtons } from "../stores/buttons";
 import { Icon } from "../icons";
-import { activeTab, bumpFit, isSerialTab, writeTabInput } from "../stores/tabs";
+import { activeTab, bumpFit, supportsShellTools, writeTabInput } from "../stores/tabs";
 import { button, C, FONT, H, M, R, S, SH, T } from "../theme";
 
 interface Props {
@@ -86,7 +86,7 @@ export function CommandBar(props: Props) {
       return;
     }
     const payload = b.command;
-    if (isSerialTab(t)) {
+    if (!supportsShellTools(t)) {
       await writeTabInput(t, payload + (b.send_enter ? "\r" : ""));
     } else if (payload.includes("\n")) {
       // multi-line: send each line followed by CR (if send_enter)

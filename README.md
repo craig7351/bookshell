@@ -9,6 +9,7 @@
 ## 功能特色
 
 - 多分頁 SSH 與本機 shell 連線（xterm.js + WebGL 渲染）
+- **Telnet 明文連線**。在 Connect → New 選擇 Telnet，填入主機與連接埠（預設 23），並在終端分頁完成登入。Windows、Ubuntu 和 macOS 皆可使用。
 - **串列埠 Serial (COM)（僅限 Windows 版）**。在 Connect → New 選擇 Serial (COM)，挑選本機 COM 埠並設定鮑率與換行。Ubuntu 可保留匯入的 Serial 設定，帶回 Windows 後即可連線。適用平台以執行 BOOKSHELL 的電腦為準。
 - 左側 tab 可記住工作目錄，重開軟體後自動 `cd` 回該位置
 - 左側 tab 支援拖拉排序

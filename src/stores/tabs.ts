@@ -60,27 +60,33 @@ export const tabGroups = () => state.groups;
 export const groupById = (id: string): TabGroup | undefined =>
   state.groups.find((g) => g.id === id);
 
-export function isSerialTab(tab: Tab): boolean {
-  return (tab.kind ?? connections().find((connection) => connection.id === tab.connectionId)?.kind) === "serial";
+export function tabConnectionKind(tab: Tab): ConnectionKind | undefined {
+  return tab.kind ?? connections().find((connection) => connection.id === tab.connectionId)?.kind;
 }
 
-const serialWrites = new Map<string, Promise<void>>();
+export function supportsShellTools(tab: Tab): boolean {
+  const kind = tabConnectionKind(tab);
+  return kind !== "serial" && kind !== "telnet";
+}
+
+const directWrites = new Map<string, Promise<void>>();
 
 export function writeTabInput(tab: Tab, data: string): Promise<void> {
   const sid = tab.sessionId;
   if (!sid) return Promise.resolve();
-  if (!isSerialTab(tab)) return api.sshWrite(sid, data);
+  const kind = tabConnectionKind(tab);
+  if (kind !== "serial" && kind !== "telnet") return api.sshWrite(sid, data);
   if (tab.status !== "connected") return Promise.resolve();
 
   const ending = tab.serialLineEnding === "lf" ? "\n" : tab.serialLineEnding === "crlf" ? "\r\n" : "\r";
-  const payload = data.replace(/\r\n|\r|\n/g, ending);
-  const previous = serialWrites.get(sid) ?? Promise.resolve();
+  const payload = kind === "serial" ? data.replace(/\r\n|\r|\n/g, ending) : data;
+  const previous = directWrites.get(sid) ?? Promise.resolve();
   const write = previous.catch(() => {}).then(async () => {
     if (tab.sessionId === sid && tab.status === "connected") await api.sshWrite(sid, payload);
   });
-  serialWrites.set(sid, write);
+  directWrites.set(sid, write);
   const release = () => {
-    if (serialWrites.get(sid) === write) serialWrites.delete(sid);
+    if (directWrites.get(sid) === write) directWrites.delete(sid);
   };
   void write.then(release, release);
   return write;
@@ -90,7 +96,7 @@ const [markCwdTabId, setMarkCwdTabId] = createSignal<string | null>(null);
 export { markCwdTabId };
 export function openMarkCwd(tabId: string) {
   const tab = state.tabs.find((tab) => tab.id === tabId);
-  if (!tab || isSerialTab(tab)) return;
+  if (!tab || !supportsShellTools(tab)) return;
   setMarkCwdTabId(tabId);
 }
 export function closeMarkCwd() {
@@ -191,7 +197,7 @@ export function setTabGitWidth(id: string, width: number) {
 
 export async function captureCwd(tabId: string): Promise<string | null> {
   const t = state.tabs.find((x) => x.id === tabId);
-  if (!t || !t.sessionId || t.status !== "connected" || isSerialTab(t)) return null;
+  if (!t || !t.sessionId || t.status !== "connected" || !supportsShellTools(t)) return null;
 
   const profile = connections().find((c) => c.id === t.connectionId);
 
@@ -234,7 +240,7 @@ function shellTypeForTab(tabId: string): ShellKind {
  *  Used by Mark cwd → Auto-detect, where the user explicitly asked for it. */
 export async function captureCwdViaPty(tabId: string): Promise<string | null> {
   const t = state.tabs.find((x) => x.id === tabId);
-  if (!t || !t.sessionId || t.status !== "connected" || isSerialTab(t)) return null;
+  if (!t || !t.sessionId || t.status !== "connected" || !supportsShellTools(t)) return null;
   const sid = t.sessionId;
   const kind = shellTypeForTab(tabId);
 
@@ -301,7 +307,7 @@ export async function captureCwdViaPty(tabId: string): Promise<string | null> {
  *  No-op when cwd is unset. */
 export async function restoreCwd(tabId: string) {
   const t0 = state.tabs.find((x) => x.id === tabId);
-  if (!t0 || !t0.cwd || !t0.sessionId || isSerialTab(t0)) return;
+  if (!t0 || !t0.cwd || !t0.sessionId || !supportsShellTools(t0)) return;
   const sid0 = t0.sessionId;
   await new Promise((r) => setTimeout(r, 500));
   // Re-check that the same session is still alive.
@@ -559,6 +565,19 @@ export async function connectTabSerial(tabId: string, settings: SerialSettings |
     updateTab(tabId, { status: "error", errorMessage: configError ?? "Missing serial settings." });
     return;
   }
+  await connectDirectTab(tabId, "serial", (sid) => api.serialOpen(sid, settings), settings.line_ending);
+}
+
+export function connectTabTelnet(tabId: string, host: string, port: number) {
+  return connectDirectTab(tabId, "telnet", (sid) => api.telnetOpen(sid, host, port));
+}
+
+async function connectDirectTab(
+  tabId: string,
+  kind: "serial" | "telnet",
+  open: (sessionId: string) => Promise<void>,
+  serialLineEnding?: SerialSettings["line_ending"],
+) {
   const sid = crypto.randomUUID();
   const current = () => state.tabs.find((tab) => tab.id === tabId)?.sessionId === sid;
   const listeners: UnlistenFn[] = [];
@@ -567,9 +586,9 @@ export async function connectTabSerial(tabId: string, settings: SerialSettings |
     else listeners.splice(0).forEach((unlisten) => unlisten());
   };
   stopSessionListeners(tabId);
-  updateTab(tabId, { kind: "serial", status: "connecting", sessionId: sid, serialLineEnding: settings.line_ending, errorMessage: undefined });
+  updateTab(tabId, { kind, status: "connecting", sessionId: sid, serialLineEnding, errorMessage: undefined });
   try {
-    // Subscribe before opening so the first device output can reach xterm.
+    // Subscribe before opening so the first remote output can reach xterm.
     listeners.push(await api.onSshData(sid, (bytes) => {
       if (current()) dataListeners.get(tabId)?.(bytes);
     }));
@@ -585,7 +604,7 @@ export async function connectTabSerial(tabId: string, settings: SerialSettings |
       return;
     }
     sessionUnlisteners.set(tabId, listeners);
-    await api.serialOpen(sid, settings);
+    await open(sid);
     if (!current()) {
       await api.sshDisconnect(sid);
       return;
@@ -615,6 +634,10 @@ export async function reconnectTabFromProfile(tabId: string): Promise<boolean> {
   if (!profile) return false;
   if (profile.kind === "serial") {
     await connectTabSerial(tabId, profile.serial);
+    return true;
+  }
+  if (profile.kind === "telnet") {
+    await connectTabTelnet(tabId, profile.host, profile.port);
     return true;
   }
   if (profile.kind === "local") {

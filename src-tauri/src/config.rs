@@ -22,6 +22,7 @@ pub enum ConnectionKind {
     Ssh,
     Local,
     Serial,
+    Telnet,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -119,7 +120,14 @@ pub async fn config_list_connections() -> Result<Vec<Connection>, String> {
 }
 
 #[tauri::command]
-pub async fn config_save_connection(connection: Connection) -> Result<(), String> {
+pub async fn config_save_connection(mut connection: Connection) -> Result<(), String> {
+    if connection.kind == ConnectionKind::Telnet {
+        connection.user.clear();
+        connection.password = None;
+        connection.shell = None;
+        connection.cwd = None;
+        connection.serial = None;
+    }
     let mut all = load_connections()?;
     if let Some(existing) = all.iter_mut().find(|c| c.id == connection.id) {
         *existing = connection;

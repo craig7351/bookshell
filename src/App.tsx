@@ -32,15 +32,16 @@ import {
   connectTab,
   connectTabLocal,
   connectTabSerial,
+  connectTabTelnet,
   flushPersistedState,
   isActiveTabPassthrough,
-  isSerialTab,
   markCwdTabId,
   newTabId,
   reconnectTabFromProfile,
   reorderTabs,
   restoreTabs,
   setActiveTab,
+  supportsShellTools,
   tabs,
   toggleTabPassthrough,
 } from "./stores/tabs";
@@ -60,7 +61,7 @@ const LAYOUT_ICON: Record<string, IconName> = {
 export default function App() {
   const shellTabId = () => {
     const tab = activeTab();
-    return tab && !isSerialTab(tab) ? tab.id : null;
+    return tab && supportsShellTools(tab) ? tab.id : null;
   };
   const [showDialog, setShowDialog] = createSignal(false);
   // One Settings dialog, opened on a named pane. The CommandBar pencil used
@@ -119,7 +120,7 @@ export default function App() {
       const prev = prevStatus.get(tab.id);
       if (tab.status === "connected" && prev !== "connected") {
         const id = tab.id;
-        const shouldAutoOpen = restoredTabIds.has(id) && !!tab.cwd && !isSerialTab(tab);
+        const shouldAutoOpen = restoredTabIds.has(id) && !!tab.cwd && supportsShellTools(tab);
         if (shouldAutoOpen) {
           setTimeout(() => {
             // Saved cwd is trusted — skip PTY probe, just refresh git with it.
@@ -152,10 +153,8 @@ export default function App() {
         await new Promise((r) => setTimeout(r, 80));
         for (const id of restoredIds) {
           const tab = tabs().find((tab) => tab.id === id);
-          if (tab && isSerialTab(tab)) continue;
-          // reconnectTabFromProfile auto-connects only when the profile has a
-          // saved password; otherwise the tab stays disconnected and the
-          // TerminalView's reconnect overlay handles it.
+          if (tab && !supportsShellTools(tab)) continue;
+          // Restore local shells and SSH profiles with saved credentials.
           reconnectTabFromProfile(id).catch((e) =>
             console.warn(`auto-reconnect ${id} failed`, e),
           );
@@ -276,7 +275,8 @@ export default function App() {
     const tabName =
       conn.name ||
       (conn.kind === "serial" ? conn.serial?.port || "Serial (COM)"
-        : conn.kind === "local" ? "local" : `${conn.user}@${conn.host}`);
+        : conn.kind === "local" ? "local"
+        : conn.kind === "telnet" ? conn.host : `${conn.user}@${conn.host}`);
     const tab = addTab({
       id: newTabId(),
       name: tabName,
@@ -294,6 +294,8 @@ export default function App() {
     try {
       if (conn.kind === "serial") {
         await connectTabSerial(tab.id, conn.serial);
+      } else if (conn.kind === "telnet") {
+        await connectTabTelnet(tab.id, conn.host, conn.port);
       } else if (conn.kind === "local") {
         await connectTabLocal(tab.id, {
           shell: conn.shell ?? null,

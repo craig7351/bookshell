@@ -63,6 +63,7 @@ export function newConnection(): Connection {
 }
 
 export const serialWindowsOnly = "Serial connections require BOOKSHELL to run on Windows.";
+export const defaultTelnetPort = 23;
 export const defaultSerialSettings: SerialSettings = {
   port: "", baud_rate: 115200, data_bits: 8, parity: "none", stop_bits: 1,
   flow_control: "none", line_ending: "cr",
@@ -80,6 +81,11 @@ export function connectionDescription(connection: Connection): string {
       return `${port || "Serial (COM)"} · ${baud_rate} baud${isWindows() ? "" : " · Windows only"}`;
     }
     case "ssh": return `${connection.user}@${connection.host}:${connection.port}`;
+    case "telnet": {
+      const host = connection.host.includes(":") && !connection.host.startsWith("[")
+        ? `[${connection.host}]` : connection.host;
+      return `Telnet · ${host}:${connection.port}`;
+    }
   }
 }
 
