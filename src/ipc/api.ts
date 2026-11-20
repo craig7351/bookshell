@@ -288,6 +288,7 @@ export interface TabState {
   passthrough: boolean;
   cwd?: string | null;
   startup_command?: string | null;
+  note?: string | null;
   git_width?: number | null;
   group_id?: string | null;
 }

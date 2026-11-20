@@ -49,6 +49,16 @@ select {
   accent-color: var(--accent);
 }
 
+@media (max-width: 720px) {
+  .bs-panel-button-label {
+    display: none;
+  }
+
+  .bs-header-tab-status {
+    overflow: hidden;
+  }
+}
+
 ::selection {
   background: var(--accent-fill);
 }

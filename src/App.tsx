@@ -1,8 +1,11 @@
-import { createEffect, createSignal, For, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { isTauri } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { CommandBar } from "./components/CommandBar";
 import { ConnectionDialog } from "./components/ConnectionDialog";
 import { FileBrowser } from "./components/FileBrowser";
 import { GitPanel } from "./components/GitPanel";
+import { NotePanel } from "./components/NotePanel";
 import { SideTerminalPanel } from "./components/SideTerminal";
 import { StatusFooter } from "./components/StatusFooter";
 import { initDiagnostics } from "./stores/diagnostics";
@@ -21,6 +24,7 @@ import { closeSearch, openSearch, searchTabId } from "./stores/search";
 import { actionFor } from "./stores/shortcuts";
 import { Icon, type IconName } from "./icons";
 import { Kbd } from "./components/ui/Kbd";
+import { Notice } from "./components/ui/Notice";
 import { StatusDot } from "./components/ui/StatusDot";
 import { button, C, H, R, S, SH, T } from "./theme";
 import {
@@ -33,7 +37,7 @@ import {
   connectTabLocal,
   connectTabSerial,
   connectTabTelnet,
-  flushPersistedState,
+  flushTabsBeforeClose,
   isActiveTabPassthrough,
   markCwdTabId,
   newTabId,
@@ -70,6 +74,19 @@ export default function App() {
   const [settingsPane, setSettingsPane] = createSignal<PaneId | null>(null);
   const [colDragging, setColDragging] = createSignal(false);
   const [filesColDragging, setFilesColDragging] = createSignal(false);
+  const [noteOpen, setNoteOpen] = createSignal(false);
+  const [closeSaveError, setCloseSaveError] = createSignal(false);
+  const noteTab = () => noteOpen() ? activeTab() : null;
+  const panelsOpen = () => {
+    const id = shellTabId();
+    return !!noteTab() || (!!id && (isGitOpen(id) || isSideTermOpen(id) || filesOpen()));
+  };
+
+  function toggleNote() {
+    if (!activeTab()) return;
+    if (!noteOpen()) setLayout("right-split");
+    setNoteOpen(!noteOpen());
+  }
 
   function startColDrag(ev: MouseEvent) {
     ev.preventDefault();
@@ -162,7 +179,34 @@ export default function App() {
       }
     })();
 
-    window.addEventListener("beforeunload", () => { void flushPersistedState().catch(() => {}); });
+    let closing = false;
+    const fallbackSave = () => {
+      if (!closing) void flushTabsBeforeClose().catch((error) => console.warn("tabs save on unload", error));
+    };
+    window.addEventListener("beforeunload", fallbackSave);
+    // An unload handler can't wait for IPC. Hold the native window open until
+    // the last edit has finished saving, including any queued autosave.
+    const closeListener = isTauri() ? getCurrentWindow().onCloseRequested(async (event) => {
+      if (closing) {
+        event.preventDefault();
+        return;
+      }
+      closing = true;
+      setCloseSaveError(false);
+      try {
+        await flushTabsBeforeClose();
+      } catch (error) {
+        event.preventDefault();
+        console.warn("tabs save before closing", error);
+        setCloseSaveError(true);
+        closing = false;
+      }
+    }) : undefined;
+    void closeListener?.catch((error) => console.warn("listen for window close", error));
+    onCleanup(() => {
+      window.removeEventListener("beforeunload", fallbackSave);
+      void closeListener?.then((unlisten) => unlisten(), () => {});
+    });
 
     // Tab cycle / move shortcuts (user-customizable; see stores/shortcuts.ts).
     // Registered in the capture phase so it fires before xterm's textarea
@@ -340,7 +384,7 @@ export default function App() {
 
         <Show when={activeTab()}>
           {(t) => (
-            <span style={{ ...T[12], color: C.text2, display: "flex", "align-items": "center", gap: S[1.5] }}>
+            <span class="bs-header-tab-status" style={{ ...T[12], color: C.text2, display: "flex", "align-items": "center", gap: S[1.5], "min-width": 0 }}>
               {/* "connected" is the steady state — drop the text so the
                *  header stops yelling "everything is fine" on every active
                *  tab. Show transient/broken states with a dot + label. */}
@@ -359,7 +403,9 @@ export default function App() {
                 </span>
               </Show>
               <Show when={t().errorMessage}>
-                <span style={{ color: C.red }}>{t().errorMessage}</span>
+                <span title={t().errorMessage} style={{ color: C.red, overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
+                  {t().errorMessage}
+                </span>
               </Show>
               <Show when={t().passthrough}>
                 <span
@@ -377,37 +423,37 @@ export default function App() {
 
         {/* right-side toolbar */}
         <div style={{ "margin-left": "auto", display: "flex", gap: S[1], "align-items": "center" }}>
-          <Show when={shellTabId() && (isGitOpen(shellTabId()!) || isSideTermOpen(shellTabId()!) || filesOpen())}>
-            <button class="bs-btn bs-tip" data-tip="Cycle layout" onClick={cycleLayout} style={toolBtn}>
+          <Show when={panelsOpen()}>
+            <button class="bs-btn bs-tip" data-tip="Cycle layout" aria-label={`Cycle layout (${LAYOUT_LABEL[layoutMode()]})`} onClick={cycleLayout} style={toolBtn}>
               <Icon name={LAYOUT_ICON[layoutMode()]} size={14} />
-              {LAYOUT_LABEL[layoutMode()]}
+              <span class="bs-panel-button-label">{LAYOUT_LABEL[layoutMode()]}</span>
             </button>
           </Show>
 
-          {/* One segmented control — the three panel toggles are one choice,
-           *  not three unrelated buttons in individual boxes. */}
           <div style={segmentedStyle}>
             <button
               class="bs-btn bs-tip"
               data-tip="Side terminal (cwd if marked)"
+              aria-label="Side terminal"
               aria-pressed={!!shellTabId() && isSideTermOpen(shellTabId()!)}
               onClick={() => { const id = shellTabId(); if (id) toggleSideTerm(id); }}
               style={segBtn}
               disabled={!shellTabId()}
             >
               <Icon name="terminal" size={14} />
-              Terminal
+              <span class="bs-panel-button-label">Terminal</span>
             </button>
             <button
               class="bs-btn bs-tip"
               data-tip="Toggle git view"
+              aria-label="Git"
               aria-pressed={!!shellTabId() && isGitOpen(shellTabId()!)}
               onClick={() => { const id = shellTabId(); if (id) toggleGit(id); }}
               style={segBtn}
               disabled={!shellTabId()}
             >
               <Icon name="git-branch" size={14} />
-              Git
+              <span class="bs-panel-button-label">Git</span>
             </button>
             <button
               class="bs-btn bs-tip"
@@ -419,6 +465,17 @@ export default function App() {
             >
               <Icon name="folder" size={14} />
               Files
+            </button>
+            <button
+              class="bs-btn bs-tip"
+              data-tip="Note for this tab"
+              aria-pressed={!!noteTab()}
+              onClick={toggleNote}
+              style={segBtn}
+              disabled={!activeTab()}
+            >
+              <Icon name="sticky-note" size={14} />
+              Note
             </button>
           </div>
 
@@ -531,10 +588,13 @@ export default function App() {
               <Show when={shellTabId() && isSideTermOpen(shellTabId()!)}>
                 <SideTerminalPanel />
               </Show>
+              <Show when={noteTab()} keyed>
+                {(tab) => <NotePanel tab={tab} onClose={() => setNoteOpen(false)} />}
+              </Show>
             </Show>
 
             {/* right-split: panels share a right column */}
-            <Show when={layoutMode() === "right-split" && shellTabId() && (isGitOpen(shellTabId()!) || isSideTermOpen(shellTabId()!) || filesOpen())}>
+            <Show when={layoutMode() === "right-split" && panelsOpen()}>
               {/* left-edge drag handle for column width */}
               <div
                 class="bs-resize"
@@ -545,19 +605,23 @@ export default function App() {
               />
               <div style={{
                 width: `${gitWidth()}px`,
+                "max-width": noteTab() ? "60%" : undefined,
                 display: "flex",
                 "flex-direction": "column",
                 "flex-shrink": "0",
                 "min-height": 0,
                 background: C.bg2,
               }}>
-                <Show when={activeTabId() && isGitOpen(activeTabId()!)}>
+                <Show when={shellTabId() && isGitOpen(shellTabId()!)}>
                   <GitPanel />
                 </Show>
-                <Show when={activeTabId() && filesOpen()}>
+                <Show when={shellTabId() && filesOpen()}>
                   <FileBrowser />
                 </Show>
-                <Show when={activeTabId() && isSideTermOpen(activeTabId()!)}>
+                <Show when={noteTab()} keyed>
+                  {(tab) => <NotePanel tab={tab} onClose={() => setNoteOpen(false)} />}
+                </Show>
+                <Show when={shellTabId() && isSideTermOpen(shellTabId()!)}>
                   <SideTerminalPanel />
                 </Show>
               </div>
@@ -567,6 +631,11 @@ export default function App() {
         </div>
       </div>
 
+      <Show when={closeSaveError()}>
+        <div role="alert">
+          <Notice tone="error">Could not save your tabs. Try closing BOOKSHELL again to save.</Notice>
+        </div>
+      </Show>
       <StatusFooter />
 
       <Show when={showDialog()}>

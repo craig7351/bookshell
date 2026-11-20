@@ -24,6 +24,7 @@ export interface Tab {
    *  ~500ms after a successful reconnect. Null means no cd happens. */
   cwd?: string | null;
   startupCommand?: string | null;
+  note?: string | null;
   /** Persisted per-tab width (px) of the right-side Git panel. */
   gitWidth?: number | null;
   /** Id of the group this tab belongs to (see `groups`), or null/undefined
@@ -172,6 +173,14 @@ export function isActiveTabPassthrough(): boolean {
 
 export function updateTab(id: string, patch: Partial<Tab>) {
   setState("tabs", (t) => t.id === id, patch);
+}
+
+export function setTabNote(id: string, value: string) {
+  const note = value || null;
+  const imported = importedTabs?.tabs.get(id);
+  // An edit after a backup import supersedes the note from that import.
+  if (imported) importedTabs?.tabs.set(id, { ...imported, note });
+  updateTab(id, { note });
 }
 
 export function renameTab(id: string, name: string) {
@@ -753,13 +762,16 @@ export function persistedTabsSnapshot(): {
       passthrough: t.passthrough,
       cwd: t.cwd ?? null,
       startup_command: t.startupCommand ?? null,
+      note: t.note ?? null,
       git_width: t.gitWidth ?? null,
       group_id: t.groupId ?? null,
   }));
   const merged = new Map(tabs.map((tab) => [tab.id, tab]));
   // Pending imports stay in each disk snapshot until the next startup. The
   // live tabs retain their sessions, even for IDs replaced by the backup.
-  for (const [id, tab] of importedTabs?.tabs ?? []) merged.set(id, tab);
+  for (const [id, tab] of importedTabs?.tabs ?? []) {
+    merged.set(id, { ...tab, note: tab.note === undefined ? merged.get(id)?.note ?? null : tab.note });
+  }
   return {
     tabs: Array.from(merged.values()),
     active_tab_id: importedTabs?.activeTabId ?? state.activeTabId,
@@ -786,7 +798,10 @@ function saveTabs() {
 export async function importPersistedTabs(tabs: TabState[], activeTabId: string | null) {
   const previous = importedTabs;
   const merged = new Map(previous?.tabs);
-  for (const tab of tabs) merged.set(tab.id, tab);
+  for (const tab of tabs) {
+    const note = tab.note === undefined ? merged.get(tab.id)?.note : tab.note;
+    merged.set(tab.id, { ...tab, note });
+  }
   const next = { tabs: merged, activeTabId: activeTabId ?? previous?.activeTabId ?? null };
   importedTabs = next;
   try {
@@ -821,6 +836,7 @@ createRoot(() => {
       void t.passthrough;
       void t.cwd;
       void t.startupCommand;
+      void t.note;
       void t.gitWidth;
       void t.groupId;
     });
@@ -867,6 +883,7 @@ export async function restoreTabs(): Promise<string[] | null> {
       passthrough: t.passthrough,
       cwd: t.cwd ?? null,
       startupCommand: pendingStartupCommands.get(t.id) ?? null,
+      note: t.note ?? null,
       gitWidth: t.git_width ?? null,
       groupId: t.group_id ?? null,
       fitTick: 0,
@@ -901,6 +918,13 @@ export function flushPersistedState() {
     saveTimer = undefined;
   }
   return saveTabs();
+}
+
+export async function flushTabsBeforeClose() {
+  if (restoring) return;
+  do {
+    await flushPersistedState();
+  } while (saveTimer !== undefined || savingTabs);
 }
 
 export type { Connection };

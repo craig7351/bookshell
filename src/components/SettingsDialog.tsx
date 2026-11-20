@@ -549,6 +549,7 @@ function BackupPane() {
           passthrough: t.passthrough,
           cwd: t.cwd ?? null,
           startup_command: t.startup_command ?? null,
+          note: t.note ?? null,
         })),
         active_tab_id: snapshot.active_tab_id,
         connections: (await api.listConnections()).map((c) => ({
@@ -597,7 +598,11 @@ function BackupPane() {
         throw new Error("Not a BOOKSHELL backup file (or unsupported version).");
       }
       data.tabs = Array.isArray(data.tabs)
-        ? data.tabs.map((tab) => ({ ...tab, startup_command: normalizeStartupCommand(tab.startup_command) }))
+        ? data.tabs.map((tab) => ({
+            ...tab,
+            startup_command: normalizeStartupCommand(tab.startup_command),
+            note: typeof tab.note === "string" || tab.note === null ? tab.note : undefined,
+          }))
         : [];
       const commands = data.tabs.filter((tab) => !!tab.startup_command);
       if (commands.length) {
@@ -640,7 +645,7 @@ function BackupPane() {
     <div style={paneStackStyle}>
       <div style={{ ...T[12], color: C.text2 }}>
         Export your tabs, saved connections and command buttons to a JSON file.
-        Saved startup commands are included as plain text.
+        Tab notes and saved startup commands are included as plain text.
       </div>
 
       <SettingsGroup label="Export">

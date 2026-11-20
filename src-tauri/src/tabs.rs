@@ -19,6 +19,8 @@ pub struct TabState {
     pub cwd: Option<String>,
     #[serde(default)]
     pub startup_command: Option<String>,
+    #[serde(default)]
+    pub note: Option<String>,
     /// Per-tab width (px) of the right-side Git panel. Persisted so each tab
     /// remembers the user's preferred width across sessions.
     #[serde(default)]
@@ -71,6 +73,12 @@ pub async fn tabs_save_state(state: TabsFile) -> Result<(), String> {
         fs::create_dir_all(parent).map_err(|e| format!("mkdir {}: {}", parent.display(), e))?;
     }
     let text = toml::to_string_pretty(&state).map_err(|e| format!("serialize: {}", e))?;
-    fs::write(&path, text).map_err(|e| format!("write {}: {}", path.display(), e))?;
-    Ok(())
+    let temporary = path.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
+    let result = fs::write(&temporary, text)
+        .and_then(|()| fs::rename(&temporary, &path))
+        .map_err(|e| format!("write {}: {}", path.display(), e));
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
 }
