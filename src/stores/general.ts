@@ -1,15 +1,25 @@
 import { createSignal } from "solid-js";
 import { api, type GeneralSettings } from "../ipc/api";
 
-const defaults: GeneralSettings = {
-  scrollback: 10000,
+export const defaultTerminalAppearance = {
   font_size: 14,
   side_font_size: 14,
+  terminal_font_family: null,
+  terminal_palette: null,
+  terminal_foreground: null,
+  terminal_background: null,
+} as const;
+
+const defaults: GeneralSettings = {
+  ...defaultTerminalAppearance,
+  scrollback: 10000,
   git_poll_secs: 5,
 };
 
 const [general, setGeneral] = createSignal<GeneralSettings>(defaults);
 export { general };
+
+let pendingSave = Promise.resolve();
 
 export async function loadGeneral() {
   try {
@@ -20,12 +30,18 @@ export async function loadGeneral() {
   }
 }
 
-export async function updateGeneral(patch: Partial<GeneralSettings>) {
-  const next = { ...general(), ...patch };
-  setGeneral(next);
-  try {
-    await api.generalSet(next);
-  } catch (e) {
-    console.error("updateGeneral", e);
-  }
+export function updateGeneral(patch: Partial<GeneralSettings>): Promise<boolean> {
+  const save = pendingSave.then(async () => {
+    const next = { ...general(), ...patch };
+    try {
+      await api.generalSet(next);
+      setGeneral(next);
+      return true;
+    } catch (e) {
+      console.error("updateGeneral", e);
+      return false;
+    }
+  });
+  pendingSave = save.then(() => {});
+  return save;
 }

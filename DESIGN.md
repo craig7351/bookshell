@@ -223,8 +223,8 @@ imported). It is UI chrome only, via `FONT.mono`.
 
 1. The terminal container, its ancestors and any overlay above it never carry
    `backdrop-filter`, `filter`, or a `box-shadow` with blur > 4px.
-2. `xtermTheme.background` must equal the host element's background
-   (`RAW.bg2`, opaque).
+2. The active xterm theme and its host element must use the same opaque
+   background. The default is `RAW.bg2`.
 3. Card treatment is `border-radius` + `overflow: hidden` on the `Terminal.tsx`
    root only. No shadow. The 6px gutter around it belongs to a *static*
    wrapper in `App.tsx` — padding on the terminals' own positioned container

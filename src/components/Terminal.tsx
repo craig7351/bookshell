@@ -1,7 +1,9 @@
-import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { createStore } from "solid-js/store";
-import { button, C, FONT, H, M, R, RAW, S, SH, T, xtermTheme } from "../theme";
+import { button, C, FONT, H, M, R, RAW, S, SH, T } from "../theme";
+import { terminalFontFamily, terminalTheme } from "../themes/terminal";
+import { applyTerminalSettings } from "./terminalSettings";
 import { Icon, type IconName } from "../icons";
 import { CloseGlyph } from "./CloseX";
 import { Terminal } from "@xterm/xterm";
@@ -55,6 +57,7 @@ const RAIL_TICK_MS = 250;
 const RAIL_IDLE_MS = 3000;
 
 export function TerminalView(props: Props) {
+  const theme = createMemo(() => terminalTheme(general()));
   let host!: HTMLDivElement;
   let term: Terminal | undefined;
   /** Set by onCleanup so deferred work (the WebGL retry timer) can bail out
@@ -260,10 +263,11 @@ export function TerminalView(props: Props) {
   }
 
   onMount(() => {
+    const settings = general();
     term = new Terminal({
       cursorBlink: true,
-      fontFamily: FONT.term,
-      fontSize: general().font_size,
+      fontFamily: terminalFontFamily(settings.terminal_font_family),
+      fontSize: settings.font_size,
       // 1.2 gives the grid the same optical rhythm as the rest of the chrome
       // without breaking box-drawing TUIs (htop, Claude Code) the way a taller
       // leading does. Changing it re-measures the cell, hence it lands in the
@@ -273,9 +277,9 @@ export function TerminalView(props: Props) {
       // Reserves a 10px strip on the right edge for search / highlight marks.
       // It costs cols, so it is measured together with the padding above.
       overviewRulerWidth: 10,
-      scrollback: general().scrollback,
+      scrollback: settings.scrollback,
       allowProposedApi: true,
-      theme: xtermTheme,
+      theme: theme(),
     });
     fit = new FitAddon();
     search = new SearchAddon();
@@ -589,12 +593,15 @@ export function TerminalView(props: Props) {
     });
   });
 
-  // Live-update term options when general settings change
+  // Inactive tabs refit when activated, using the options applied here.
   createEffect(() => {
-    if (!term) return;
-    term.options.scrollback = general().scrollback;
-    term.options.fontSize = general().font_size;
-    queueMicrotask(() => fit?.fit());
+    if (!termReady() || !term) return;
+    const settings = general();
+    if (applyTerminalSettings(term, settings, settings.font_size, theme())) {
+      queueMicrotask(() => {
+        if (!termDisposed && props.active) fit?.fit();
+      });
+    }
   });
 
   // Passthrough flips from a global hotkey, so the canvas has to say so
@@ -642,9 +649,9 @@ export function TerminalView(props: Props) {
         "pointer-events": props.active ? "auto" : "none",
         // The terminal card. App.tsx has no per-tab wrapper to round, so the
         // radius lives here and clips every overlay this component stacks on
-        // top. Background must match xtermTheme.background exactly (RAW.bg2)
+        // top. Background must match the active terminal theme exactly
         // or a seam shows at the corners. No shadow, no filter — xterm rule 1.
-        background: C.bg,
+        background: theme().background,
         "border-radius": R.md,
         overflow: "hidden",
       }}
@@ -653,14 +660,13 @@ export function TerminalView(props: Props) {
         ref={host}
         // Asymmetric on purpose: more air above the first row and to the left
         // of the prompt than on the edges the overview ruler and the scrollbar
-        // already occupy. Background must stay the exact xtermTheme.background
-        // (--bg-2) or the padding reads as a frame around the canvas.
+        // already occupy. Match the canvas color so the padding blends in.
         // content-box is load-bearing: FitAddon sizes cols/rows from the
         // parent's computed width/height, which under the global border-box
         // reset INCLUDES this padding. It then over-allocates ~2 columns, the
         // canvas overflows the .xterm box and paints over the viewport's
         // scrollbar (and the last row can slip under the card edge).
-        style={{ position: "absolute", inset: "0", padding: "10px 8px 8px 12px", "box-sizing": "content-box", background: C.bg }}
+        style={{ position: "absolute", inset: "0", padding: "10px 8px 8px 12px", "box-sizing": "content-box", background: theme().background }}
         onclick={() => {
           if (props.active && !isSearchOpenFor(props.tab.id)) {
             term?.focus();

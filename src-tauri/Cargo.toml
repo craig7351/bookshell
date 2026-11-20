@@ -44,8 +44,12 @@ open = "5"
 webview2-com = "0.38"
 windows = { version = "0.61", features = [
   "Win32_Foundation",
+  "Win32_Graphics_DirectWrite",
   "Win32_System_Com",
 ] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-text = "22"
 
 [features]
 default = ["custom-protocol"]

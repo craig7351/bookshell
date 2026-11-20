@@ -2,6 +2,7 @@ mod buttons;
 mod clipboard;
 mod config;
 mod files;
+mod fonts;
 mod general;
 mod git;
 mod git_watch;
@@ -71,6 +72,7 @@ pub fn run() {
             monitor::diag_record_stall,
             general::general_get,
             general::general_set,
+            fonts::list_terminal_fonts,
             tabs::tabs_load_state,
             tabs::tabs_save_state,
             git::session_exec_capture,

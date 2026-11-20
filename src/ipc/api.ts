@@ -172,6 +172,7 @@ export const api = {
   generalGet: () => invoke<GeneralSettings>("general_get"),
   generalSet: (settings: GeneralSettings) =>
     invoke<void>("general_set", { settings }),
+  listTerminalFonts: () => invoke<string[]>("list_terminal_fonts"),
 
   // Tab state persistence
   tabsLoadState: () => invoke<TabsFile>("tabs_load_state"),
@@ -295,11 +296,17 @@ export interface DiagLogEntry {
   message: string;
 }
 
+export type TerminalPalette = "macos-dark" | "green-on-black" | "custom";
+
 export interface GeneralSettings {
   scrollback: number;
   font_size: number;
   side_font_size: number;
   git_poll_secs: number;
+  terminal_font_family: string | null;
+  terminal_palette: TerminalPalette | null;
+  terminal_foreground: string | null;
+  terminal_background: string | null;
 }
 
 export interface CommandButton {

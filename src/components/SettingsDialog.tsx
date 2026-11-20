@@ -13,8 +13,9 @@ import {
   TYPO,
 } from "../theme";
 import { Icon, type IconName } from "../icons";
+import { AppearancePane } from "./AppearancePane";
 import { DialogFrame } from "./ui/DialogFrame";
-import { SettingsGroup, SettingsRow } from "./ui/SettingsGroup";
+import { settingsField as field, SettingsGroup, SettingsRow } from "./ui/SettingsGroup";
 import { EmptyState } from "./ui/EmptyState";
 import { Notice } from "./ui/Notice";
 import { general, updateGeneral } from "../stores/general";
@@ -49,7 +50,7 @@ import {
   shortcuts,
 } from "../stores/shortcuts";
 
-export type PaneId = "general" | "connections" | "buttons" | "hotkeys" | "backup" | "about";
+export type PaneId = "general" | "appearance" | "connections" | "buttons" | "hotkeys" | "backup" | "about";
 
 interface Props {
   onClose: () => void;
@@ -87,6 +88,7 @@ export function SettingsDialog(props: Props) {
 
   const categories: Category[] = [
     { id: "general", label: "General", icon: "sliders-horizontal", render: () => <GeneralPane /> },
+    { id: "appearance", label: "Appearance", icon: "palette", render: () => <AppearancePane /> },
     { id: "connections", label: "Connections", icon: "plug", render: () => <ConnectionsPane /> },
     { id: "buttons", label: "Command Buttons", icon: "terminal", render: () => <ButtonsPane /> },
     { id: "hotkeys", label: "Hotkeys", icon: "keyboard", render: () => <HotkeysPane /> },
@@ -163,36 +165,6 @@ function GeneralPane() {
               updateGeneral({ scrollback: v });
             }}
             style={field("120px")}
-          />
-        </SettingsRow>
-
-        <SettingsRow label="Font size" hint="Main terminal, in pixels.">
-          <input
-            class="bs-input"
-            type="number"
-            min="8"
-            max="32"
-            value={general().font_size}
-            onChange={(e) => {
-              const v = Math.max(8, Math.min(32, parseInt(e.currentTarget.value) || 14));
-              updateGeneral({ font_size: v });
-            }}
-            style={field("80px")}
-          />
-        </SettingsRow>
-
-        <SettingsRow label="Side terminal font" hint="The right-column terminal, in pixels.">
-          <input
-            class="bs-input"
-            type="number"
-            min="8"
-            max="32"
-            value={general().side_font_size}
-            onChange={(e) => {
-              const v = Math.max(8, Math.min(32, parseInt(e.currentTarget.value) || 14));
-              updateGeneral({ side_font_size: v });
-            }}
-            style={field("80px")}
           />
         </SettingsRow>
       </SettingsGroup>
@@ -1318,17 +1290,3 @@ const hiddenColorStyle: JSX.CSSProperties = {
   "pointer-events": "none",
   position: "absolute",
 };
-
-/** Form field geometry. Surface, border and focus ring belong to `.bs-input`,
- *  so nothing here sets background, colour or border. */
-function field(width?: string): JSX.CSSProperties {
-  return {
-    height: H.roomy,
-    padding: `0 ${S[2]}`,
-    ...T[13],
-    width: width ?? "100%",
-    "max-width": "100%",
-    "box-sizing": "border-box",
-    "font-family": "inherit",
-  };
-}

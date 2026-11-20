@@ -1,5 +1,7 @@
-import { createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner, Show } from "solid-js";
-import { C, FONT, R, xtermTheme } from "../theme";
+import { createEffect, createMemo, createSignal, getOwner, onCleanup, onMount, runWithOwner, Show } from "solid-js";
+import { C, R } from "../theme";
+import { terminalFontFamily, terminalTheme } from "../themes/terminal";
+import { applyTerminalSettings } from "./terminalSettings";
 import { PanelHeader, panelCard } from "./ui/PanelHeader";
 import { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -107,8 +109,7 @@ export function SideTerminalPanel() {
         style={layoutVertical() ? {
           height: `${sideTermHeight()}px`,
           width: "100%",
-          // Chrome is --bg-1; only the xterm host inside is --bg-2, which is
-          // what xtermTheme.background is bound to.
+          // The panel header uses chrome colors. The xterm host has its own theme.
           background: C.bg2,
           "border-top": `1px solid ${C.border}`,
           display: "flex",
@@ -202,6 +203,7 @@ const colHandle = {
 } as const;
 
 function SideTerminalView(props: { sessionId: string; parentTabId: string; onFocusChange: (v: boolean) => void }) {
+  const theme = createMemo(() => terminalTheme(general()));
   let host!: HTMLDivElement;
   let term: Terminal | undefined;
   let fit: FitAddon | undefined;
@@ -214,16 +216,17 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string; onFoc
     // never be disposed (leaking listeners + an effect on every remount) and
     // log "computations/cleanups created outside a createRoot" warnings.
     const owner = getOwner();
+    const settings = general();
     term = new Terminal({
       cursorBlink: true,
-      fontFamily: FONT.term,
-      fontSize: general().side_font_size,
+      fontFamily: terminalFontFamily(settings.terminal_font_family),
+      fontSize: settings.side_font_size,
       // Matches Terminal.tsx so the two grids share one optical rhythm.
       lineHeight: 1.2,
       fontWeightBold: 600,
-      scrollback: general().scrollback,
+      scrollback: settings.scrollback,
       allowProposedApi: true,
-      theme: xtermTheme,
+      theme: theme(),
     });
     fit = new FitAddon();
     term.loadAddon(fit);
@@ -293,6 +296,16 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string; onFoc
       api.sshResize(props.sessionId, cols, rows).catch(() => {});
     });
 
+    createEffect(() => {
+      if (!term) return;
+      const settings = general();
+      if (applyTerminalSettings(term, settings, settings.side_font_size, theme())) {
+        queueMicrotask(() => {
+          if (term && isSideTermOpen(props.parentTabId)) fit?.fit();
+        });
+      }
+    });
+
     const ulData = await api.onSshData(props.sessionId, (bytes) => term?.write(bytes));
     const ulClose = await api.onSshClose(props.sessionId, (reason) => {
       term?.write(`\r\n\x1b[31m[side terminal closed: ${reason}]\x1b[0m\r\n`);
@@ -300,6 +313,11 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string; onFoc
       // Don't kill again — the channel is gone already.
       closeSideTerm(props.parentTabId, false);
     });
+    if (!term) {
+      ulData();
+      ulClose();
+      return;
+    }
     unlisteners.push(ulData, ulClose);
 
     // Auto-copy selection to clipboard on mouseup. Mirrors the main terminal:
@@ -343,16 +361,8 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string; onFoc
     });
     ro.observe(host);
 
-    // Re-establish the owner lost across the awaits above so these reactive
-    // primitives are attached to the component and disposed on unmount.
+    // Re-establish the owner lost across the awaits above for cleanup.
     runWithOwner(owner, () => {
-      createEffect(() => {
-        if (!term) return;
-        term.options.scrollback = general().scrollback;
-        term.options.fontSize = general().side_font_size;
-        queueMicrotask(() => fit?.fit());
-      });
-
       onCleanup(() => {
         host.removeEventListener("mouseup", onMouseUp);
         host.removeEventListener("mousedown", onMouseDown);
@@ -365,16 +375,17 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string; onFoc
   onCleanup(() => {
     unlisteners.forEach((u) => u());
     term?.dispose();
+    term = undefined;
   });
 
   // Same anatomy as the main terminal host, one notch tighter because the
-  // side pane is narrow. Background is xtermTheme.background exactly (--bg-2).
+  // side pane is narrow. Match the canvas color through the host padding.
   return (
     <div
       ref={host}
       // content-box: FitAddon reads the parent's computed size, which under
       // the global border-box reset would include this padding and over-fit.
-      style={{ position: "absolute", inset: "0", padding: "6px 8px 4px 10px", "box-sizing": "content-box", background: C.bg }}
+      style={{ position: "absolute", inset: "0", padding: "6px 8px 4px 10px", "box-sizing": "content-box", background: theme().background }}
     />
   );
 }

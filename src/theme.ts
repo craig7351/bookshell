@@ -471,7 +471,7 @@ export function input(size: CtrlSize = "roomy") {
 
 /** xterm.js theme. Reads RAW because xterm parses these as real colours —
  *  a "var(--…)" string here renders as transparent, so never pass C.
- *  `background` MUST equal the host element background (RAW.bg2, opaque):
+ *  `background` MUST equal the host element background and stay opaque:
  *  a mismatch shows up as a seam around the terminal card. */
 export const xtermTheme = {
   background:   RAW.bg2,

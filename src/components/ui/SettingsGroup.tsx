@@ -1,5 +1,5 @@
 import { Show, type JSX } from "solid-js";
-import { C, R, S, T, TYPO } from "../../theme";
+import { C, H, R, S, T, TYPO } from "../../theme";
 
 /**
  * The two blocks every Settings pane is built from.
@@ -79,6 +79,19 @@ export function SettingsRow(props: RowProps) {
       </Show>
     </div>
   );
+}
+
+/** Geometry only. The bs-input class owns the surface and focus styles. */
+export function settingsField(width = "100%"): JSX.CSSProperties {
+  return {
+    height: H.roomy,
+    padding: `0 ${S[2]}`,
+    ...T[13],
+    width,
+    "max-width": "100%",
+    "box-sizing": "border-box",
+    "font-family": "inherit",
+  };
 }
 
 const wrapStyle: JSX.CSSProperties = {

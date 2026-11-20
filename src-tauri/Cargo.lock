@@ -499,6 +499,7 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "chrono",
+ "core-text",
  "dashmap",
  "directories",
  "env_logger",
@@ -847,6 +848,17 @@ dependencies = [
  "bitflags 2.11.1",
  "core-foundation",
  "libc",
+]
+
+[[package]]
+name = "core-text"
+version = "22.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "333dab512ce710ca2d08574c373d246dbeac8b22769e47da4c0e72730ce442b7"
+dependencies = [
+ "core-foundation",
+ "core-graphics",
+ "foreign-types",
 ]
 
 [[package]]
