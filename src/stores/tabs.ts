@@ -351,6 +351,20 @@ function newGroupId(): string {
   return `grp-${Date.now()}-${nextGroupSeq++}`;
 }
 
+/** Move the group's members as a block before the given visible row anchor. */
+export function reorderGroup(groupId: string, beforeTabId: string | null) {
+  if (!groupById(groupId)) return;
+  setState("tabs", (prev) => {
+    const members = prev.filter((tab) => tab.groupId === groupId);
+    if (members.length === 0) return prev;
+    const remaining = prev.filter((tab) => tab.groupId !== groupId);
+    const index = beforeTabId === null ? remaining.length : remaining.findIndex((tab) => tab.id === beforeTabId);
+    if (index < 0) return prev;
+    remaining.splice(index, 0, ...members);
+    return remaining;
+  });
+}
+
 /** Move `sourceId` in the flat array to sit immediately after `anchorId`
  *  (or to the end when anchorId is null). Order among group members and the
  *  group's vertical position both derive from array order, so grouping ops

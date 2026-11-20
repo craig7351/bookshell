@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 
 const [tabBarWidth, setTabBarWidth] = createSignal(190);
 const MIN_W = 140;
@@ -15,6 +15,7 @@ import {
   groupById,
   openMarkCwd,
   removeTabFromGroup,
+  reorderGroup,
   renameGroup,
   renameTab,
   setActiveTab,
@@ -61,13 +62,17 @@ function shortCwd(p: string): string {
   return "…" + p.slice(p.length - 27);
 }
 
+type DragSource = { kind: "tab" | "group"; id: string };
+type DropEdge = "before" | "after";
+
 /** Where a dragged tab will land. `before` inserts above the target tab (same
  *  group as target); `group` merges into the target tab (creating a group if
  *  needed); `group-header` joins the hit group; `end` moves out to the bottom
- *  ungrouped. */
+ *  ungrouped. A dragged group uses the edge of a top-level row. */
 type DropIntent =
   | { kind: "before" | "group"; id: string }
   | { kind: "group-header"; id: string }
+  | { kind: "reorder-group"; target: DragSource; edge: DropEdge }
   | { kind: "end"; id: "__end__" };
 
 /** One render row: either a group (with its members) or a lone ungrouped tab.
@@ -81,10 +86,13 @@ export function TabBar(props: Props) {
   const [groupMenu, setGroupMenu] = createSignal<{ x: number; y: number; group: TabGroup } | null>(null);
   const [renamingId, setRenamingId] = createSignal<string | null>(null);
   const [renamingGroupId, setRenamingGroupId] = createSignal<string | null>(null);
-  const [draggingId, setDraggingId] = createSignal<string | null>(null);
+  const [dragging, setDragging] = createSignal<DragSource | null>(null);
   const [resizing, setResizing] = createSignal(false);
   /** Live drop intent while dragging; null when not over any valid target. */
   const [dropIntent, setDropIntent] = createSignal<DropIntent | null>(null);
+  let stopDrag: (() => void) | undefined;
+  let suppressGroupClick: string | undefined;
+  onCleanup(() => stopDrag?.());
 
   /** Build the clustered render model from the flat tab list + groups. */
   const rows = createMemo<Row[]>(() => {
@@ -128,17 +136,57 @@ export function TabBar(props: Props) {
     document.addEventListener("mouseup", onUp);
   }
 
-  /** Pointer-event-based drag. HTML5 drag-and-drop is unreliable in WebView2 —
-   *  events frequently don't fire, so we hand-roll it with mousedown/move/up.
-   *  Computes a DropIntent from the cursor: over a group header → join it; over
-   *  a tab → top 40% inserts before, lower 60% merges into a group; over the
-   *  end slot → move out ungrouped. */
-  function startDrag(ev: MouseEvent, tabId: string) {
+  function locateDrop(source: DragSource, event: MouseEvent): DropIntent | null {
+    const el = document.elementFromPoint(event.clientX, event.clientY);
+    const slot = el?.closest<HTMLElement>("[data-tab-slot]");
+    const tabId = slot?.dataset.tabSlot;
+    if (tabId === "__end__") return { kind: "end", id: "__end__" };
+
+    const header = el?.closest<HTMLElement>("[data-group-slot]");
+    if (source.kind === "group") {
+      const block = el?.closest<HTMLElement>("[data-group-block]");
+      const groupId = block?.dataset.groupBlock;
+      if (groupId === source.id) return null;
+      const reference = groupId ? header ?? block : slot;
+      const target: DragSource | undefined = groupId ? { kind: "group", id: groupId }
+        : tabId ? { kind: "tab", id: tabId } : undefined;
+      if (!reference || !target) return null;
+      const rect = reference.getBoundingClientRect();
+      return { kind: "reorder-group", target, edge: event.clientY < rect.top + rect.height / 2 ? "before" : "after" };
+    }
+
+    if (header?.dataset.groupSlot) return { kind: "group-header", id: header.dataset.groupSlot };
+    if (!slot || !tabId || tabId === source.id) return null;
+    const rect = slot.getBoundingClientRect();
+    const ratio = (event.clientY - rect.top) / rect.height;
+    return { kind: ratio < 0.4 ? "before" : "group", id: tabId };
+  }
+
+  function moveGroup(groupId: string, intent: Extract<DropIntent, { kind: "reorder-group" | "end" }>) {
+    const visibleRows = rows();
+    const from = visibleRows.findIndex((row) => row.kind === "group" && row.group.id === groupId);
+    if (from < 0) return;
+    let before = visibleRows.length;
+    if (intent.kind === "reorder-group") {
+      before = visibleRows.findIndex((row) => row.kind === intent.target.kind
+        && (row.kind === "group" ? row.group.id : row.tab.id) === intent.target.id);
+      if (before < 0) return;
+      if (intent.edge === "after") before++;
+    }
+    if (before === from || before === from + 1) return;
+    // The next visible row provides the anchor even if existing group members
+    // are interleaved in the persisted flat tab list.
+    const anchor = visibleRows[before];
+    reorderGroup(groupId, anchor ? (anchor.kind === "group" ? anchor.members[0].id : anchor.tab.id) : null);
+  }
+
+  /** Use mouse events for both reorder gestures in WebView2. */
+  function startDrag(ev: MouseEvent, source: DragSource) {
     if (ev.button !== 0) return;
-    if (renamingId() === tabId) return;
-    // Don't start drag if user clicked the close × or the rename input.
-    const target = ev.target as HTMLElement;
-    if (target.tagName === "BUTTON" || target.tagName === "INPUT") return;
+    if (source.kind === "group") suppressGroupClick = undefined;
+    if ((source.kind === "tab" ? renamingId() : renamingGroupId()) === source.id) return;
+    if (ev.target instanceof Element && ev.target.closest("button, input")) return;
+    stopDrag?.();
 
     const startX = ev.clientX;
     const startY = ev.clientY;
@@ -149,46 +197,41 @@ export function TabBar(props: Props) {
         // 4px threshold so quick clicks aren't misread as drags
         if (Math.hypot(e.clientX - startX, e.clientY - startY) < 4) return;
         active = true;
-        setDraggingId(tabId);
+        setDragging(source);
+        if (source.kind === "group") suppressGroupClick = source.id;
       }
-      const el = document.elementFromPoint(e.clientX, e.clientY);
-      const header = el?.closest("[data-group-slot]");
-      if (header) {
-        setDropIntent({ kind: "group-header", id: header.getAttribute("data-group-slot")! });
-        return;
-      }
-      const slot = el?.closest("[data-tab-slot]") as HTMLElement | null;
-      const sid = slot?.getAttribute("data-tab-slot") ?? null;
-      if (!sid) {
-        setDropIntent(null);
-        return;
-      }
-      if (sid === "__end__") {
-        setDropIntent({ kind: "end", id: "__end__" });
-        return;
-      }
-      if (sid === tabId) {
-        setDropIntent(null);
-        return;
-      }
-      const rect = slot!.getBoundingClientRect();
-      const ratio = (e.clientY - rect.top) / rect.height;
-      setDropIntent({ kind: ratio < 0.4 ? "before" : "group", id: sid });
+      setDropIntent(locateDrop(source, e));
     };
 
-    const onUp = () => {
+    const cleanup = () => {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
-      const intent = dropIntent();
-      if (active && intent) {
-        dropTab(tabId, { kind: intent.kind, targetId: intent.kind === "end" ? null : intent.id });
-      }
-      setDraggingId(null);
+      window.removeEventListener("blur", cleanup);
+      stopDrag = undefined;
+      setDragging(null);
       setDropIntent(null);
     };
+    const onUp = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      const intent = active ? locateDrop(source, e) : null;
+      cleanup();
+      if (!intent) return;
+      if (source.kind === "group") {
+        if (intent.kind === "reorder-group" || intent.kind === "end") moveGroup(source.id, intent);
+      } else if (intent.kind !== "reorder-group") {
+        dropTab(source.id, { kind: intent.kind, targetId: intent.kind === "end" ? null : intent.id });
+      }
+    };
 
+    stopDrag = cleanup;
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
+    window.addEventListener("blur", cleanup);
+  }
+
+  function groupDropEdge(kind: DragSource["kind"], id: string): DropEdge | undefined {
+    const intent = dropIntent();
+    if (intent?.kind === "reorder-group" && intent.target.kind === kind && intent.target.id === id) return intent.edge;
   }
 
   function openMenu(e: MouseEvent, tab: Tab) {
@@ -291,7 +334,7 @@ export function TabBar(props: Props) {
     });
   }
 
-  /** Render a single tab row. `inGroup` indents members under their header. */
+  /** Render a single tab row. Group members share their group's drop boundary. */
   function renderTab(t: Tab, inGroup: boolean) {
     const intent = () => dropIntent();
     const isActive = () => t.id === activeTabId();
@@ -299,6 +342,7 @@ export function TabBar(props: Props) {
       const i = intent();
       return i?.kind === "before" && i.id === t.id;
     };
+    const groupEdge = () => inGroup ? undefined : groupDropEdge("tab", t.id);
     const isGroupMerge = () => {
       const i = intent();
       return i?.kind === "group" && i.id === t.id;
@@ -308,7 +352,7 @@ export function TabBar(props: Props) {
         class="bs-row bs-tabrow"
         data-tab-slot={t.id}
         aria-selected={isActive()}
-        onMouseDown={(e) => startDrag(e, t.id)}
+        onMouseDown={(e) => startDrag(e, { kind: "tab", id: t.id })}
         onClick={() => setActiveTab(t.id)}
         onDblClick={() => setRenamingId(t.id)}
         onContextMenu={(e) => openMenu(e, t)}
@@ -328,7 +372,6 @@ export function TabBar(props: Props) {
         style={{
           ...rowStyle,
           height: t.cwd ? "40px" : H.row,
-          "margin-left": inGroup ? "10px" : "0",
           // Background and foreground are class-driven; only slots go inline.
           "--btn-bg": isGroupMerge() ? C.accentBg : "transparent",
           "--btn-fg": isActive() ? C.text : C.text2,
@@ -340,13 +383,14 @@ export function TabBar(props: Props) {
             : C.bgSelected,
           "font-weight": isActive() ? 500 : 400,
           "box-shadow": isGroupMerge() ? `inset 0 0 0 1.5px ${C.accent}` : "none",
-          opacity: draggingId() === t.id ? 0.35 : 1,
+          opacity: dragging()?.kind === "tab" && dragging()?.id === t.id ? 0.35 : 1,
         }}
         title={t.errorMessage ?? t.name}
       >
         <Show when={isBefore()}>
           <div style={dropBarStyle} />
         </Show>
+        <Show when={groupEdge()}>{(edge) => <div style={groupDropBarStyle(edge())} />}</Show>
         <Show when={t.color}>
           <div style={{ ...railStyle, background: t.color! }} />
         </Show>
@@ -420,55 +464,72 @@ export function TabBar(props: Props) {
       const i = dropIntent();
       return i?.kind === "group-header" && i.id === group.id;
     };
-    const activeInside = () => members.some((m) => m.id === activeTabId());
+    const activeInside = () => group.collapsed && members.some((m) => m.id === activeTabId());
+    const groupEdge = () => groupDropEdge("group", group.id);
+    const beingMoved = () => dragging()?.kind === "group" && dragging()?.id === group.id;
+    const editingName = () => renamingGroupId() === group.id;
+    const headerFill = () => group.color
+      ? `color-mix(in srgb, ${group.color} 12%, ${C.bg3})`
+      : C.bg3;
+    const groupLabel = () => `${group.name}, ${members.length} ${members.length === 1 ? "tab" : "tabs"}`
+      + (activeInside() ? ", contains the active tab" : "");
     return (
-      <div style={{ display: "flex", "flex-direction": "column", gap: "1px" }}>
+      <div
+        data-group-block={group.id}
+        style={{ ...groupBlockStyle, opacity: beingMoved() ? 0.35 : 1 }}
+      >
+        <Show when={groupEdge()}>{(edge) => <div style={groupDropBarStyle(edge())} />}</Show>
         <div
           class="bs-row"
           data-group-slot={group.id}
-          onClick={() => toggleGroupCollapsed(group.id)}
+          role={editingName() ? undefined : "button"}
+          tabindex={editingName() ? -1 : 0}
+          aria-expanded={editingName() ? undefined : !group.collapsed}
+          aria-label={editingName() ? undefined : groupLabel()}
+          onMouseDown={(e) => startDrag(e, { kind: "group", id: group.id })}
+          onClick={(e) => {
+            if (e.detail === 0 || suppressGroupClick !== group.id) toggleGroupCollapsed(group.id);
+          }}
+          onKeyDown={(e) => {
+            if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+              e.preventDefault();
+              toggleGroupCollapsed(group.id);
+            }
+          }}
           onDblClick={(e) => {
             e.stopPropagation();
-            setRenamingGroupId(group.id);
+            if (suppressGroupClick !== group.id) setRenamingGroupId(group.id);
           }}
           onContextMenu={(e) => openGroupMenu(e, group)}
           style={{
             ...groupHeaderStyle,
-            "--btn-bg": isHeaderTarget() ? C.accentBg : "transparent",
-            "--btn-fg": C.text3,
-            "--btn-fg-hover": C.text2,
+            cursor: beingMoved() ? "grabbing" : "grab",
+            "--btn-bg": isHeaderTarget() ? C.accentBg : headerFill(),
+            "--btn-bg-hover": isHeaderTarget() ? C.accentBg : `color-mix(in srgb, ${headerFill()} 94%, ${C.text})`,
+            "--btn-fg": C.text,
             "box-shadow": isHeaderTarget() ? `inset 0 0 0 1.5px ${C.accent}` : "none",
           }}
-          title={group.collapsed ? "Click to expand" : "Click to collapse"}
+          title={`${group.name} · ${group.collapsed ? "Click to expand" : "Click to collapse"}. Drag to reorder.`}
         >
-          <Show when={group.color}>
-            <div style={{ ...railStyle, background: group.color! }} />
-          </Show>
-          <div style={leadSlotStyle}>
+          <div style={groupIconsStyle}>
             <Icon
               name="chevron-right"
               size={12}
               style={{
+                color: C.text2,
                 transform: group.collapsed ? "none" : "rotate(90deg)",
                 transition: `transform ${M.d2} ${M.ease}`,
               }}
             />
+            <Icon name={group.collapsed ? "folder" : "folder-open"} size={14} style={{ color: group.color ?? C.text2 }} />
           </div>
           <Show
-            when={renamingGroupId() === group.id}
-            fallback={
-              <span
-                style={{
-                  ...groupNameStyle,
-                  ...(activeInside() && group.collapsed ? { color: C.accent } : {}),
-                }}
-              >
-                {group.name}
-              </span>
-            }
+            when={editingName()}
+            fallback={<span style={groupNameStyle}>{group.name}</span>}
           >
             <input
               value={group.name}
+              aria-label="Group name"
               autofocus
               ref={focusRename}
               onClick={(e) => e.stopPropagation()}
@@ -482,10 +543,15 @@ export function TabBar(props: Props) {
               style={renameInputStyle}
             />
           </Show>
-          <span style={countPillStyle}>{members.length}</span>
+          <Show when={activeInside()}>
+            <span aria-hidden="true" title="Contains the active tab" style={activeGroupDotStyle} />
+          </Show>
+          <span aria-hidden="true" style={countPillStyle}>{members.length}</span>
         </div>
         <Show when={!group.collapsed}>
-          <For each={members}>{(m) => renderTab(m, true)}</For>
+          <div style={groupMembersStyle}>
+            <For each={members}>{(m) => renderTab(m, true)}</For>
+          </div>
         </Show>
       </div>
     );
@@ -502,8 +568,8 @@ export function TabBar(props: Props) {
                 : renderTab(row.tab, false)
             }
           </For>
-          <div data-tab-slot="__end__" style={endSlotStyle}>
-            <Show when={dropIntent()?.kind === "end" && draggingId()}>
+          <div data-tab-slot="__end__" style={{ ...endSlotStyle, "flex-grow": dragging()?.kind === "group" ? 1 : 0 }}>
+            <Show when={dropIntent()?.kind === "end" && dragging()}>
               <div style={{ ...dropBarStyle, top: "4px" }} />
             </Show>
           </div>
@@ -582,8 +648,7 @@ const scrollStyle = {
   "min-height": 0,
 } as const;
 
-/** One anatomy for every entry: [16px leading slot][name][trailing meta], so
- *  a name starts at the same x whatever the row happens to carry. */
+/** Tabs share a 16px leading slot, a name and trailing controls. */
 const rowStyle = {
   position: "relative",
   display: "flex",
@@ -596,6 +661,15 @@ const rowStyle = {
   "user-select": "none",
 } as const;
 
+const groupBlockStyle = {
+  position: "relative",
+  display: "flex",
+  "flex-direction": "column",
+  "flex-shrink": 0,
+  gap: S[0.5],
+  "padding-block": S[0.5],
+} as const;
+
 const groupHeaderStyle = {
   position: "relative",
   display: "flex",
@@ -604,8 +678,23 @@ const groupHeaderStyle = {
   height: H.row,
   padding: "0 8px 0 6px",
   "border-radius": R.sm,
-  cursor: "pointer",
   "user-select": "none",
+} as const;
+
+const groupIconsStyle = {
+  display: "flex",
+  "align-items": "center",
+  "flex-shrink": 0,
+  gap: S[1],
+} as const;
+
+const groupMembersStyle = {
+  display: "flex",
+  "flex-direction": "column",
+  gap: "1px",
+  "margin-left": S[3],
+  "padding-left": S[2],
+  "border-left": `1px solid ${C.border}`,
 } as const;
 
 const tabTopRowStyle = {
@@ -616,7 +705,7 @@ const tabTopRowStyle = {
   width: "100%",
 } as const;
 
-/** The fixed leading slot — a status dot, a custom icon, or a chevron. */
+/** The fixed leading slot for tab status dots and custom icons. */
 const leadSlotStyle = {
   position: "relative",
   width: "16px",
@@ -687,6 +776,10 @@ const dropBarStyle = {
   "pointer-events": "none",
 } as const;
 
+function groupDropBarStyle(edge: DropEdge) {
+  return { ...dropBarStyle, top: edge === "before" ? "-1px" : undefined, bottom: edge === "after" ? "-1px" : undefined, "z-index": 1 } as const;
+}
+
 const cwdRowStyle = {
   ...T[10],
   "font-family": FONT.mono,
@@ -704,23 +797,31 @@ const groupNameStyle = {
   overflow: "hidden",
   "text-overflow": "ellipsis",
   "white-space": "nowrap",
-  ...T[11],
+  ...T[12],
   "font-weight": 600,
-  "text-transform": "uppercase",
-  "letter-spacing": "0.06em",
+} as const;
+
+const activeGroupDotStyle = {
+  width: S[1.5],
+  height: S[1.5],
+  "flex-shrink": 0,
+  "border-radius": R.full,
+  background: C.accent,
 } as const;
 
 const countPillStyle = {
-  ...T[10],
+  ...T[11],
   "font-weight": 500,
   "font-variant-numeric": "tabular-nums",
-  color: C.text3,
-  background: C.bg3,
-  height: "14px",
-  padding: `0 ${S[1.5]}`,
+  color: C.text2,
+  background: C.bg2,
+  "min-width": "16px",
+  height: "16px",
+  padding: `0 ${S[1]}`,
   "border-radius": R.full,
   display: "inline-flex",
   "align-items": "center",
+  "justify-content": "center",
   "flex-shrink": 0,
 } as const;
 
@@ -751,7 +852,7 @@ const closeBtnStyle = {
   "--btn-fg-hover": C.text,
 } as const;
 
-/** Drop target for "move out of every group, to the bottom". */
+/** Drop target for moving a tab or group to the bottom. */
 const endSlotStyle = {
   position: "relative",
   "min-height": S[3],
