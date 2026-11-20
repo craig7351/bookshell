@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { api, type CommandButton } from "../ipc/api";
+import { api, type CommandButton, type ImportedCommandButton } from "../ipc/api";
 
 const [buttons, setButtons] = createSignal<CommandButton[]>([]);
 export { buttons };
@@ -16,6 +16,12 @@ export async function loadButtons() {
 export async function saveButton(b: CommandButton) {
   await api.buttonsSave(b);
   await loadButtons();
+}
+
+export async function importButtons(imported: ImportedCommandButton[]) {
+  const result = await api.buttonsImport(imported);
+  await loadButtons();
+  return result;
 }
 
 export async function removeButton(id: string) {

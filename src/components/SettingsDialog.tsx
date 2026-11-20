@@ -19,6 +19,7 @@ import { DialogFrame } from "./ui/DialogFrame";
 import { settingsField as field, SettingsGroup, SettingsRow } from "./ui/SettingsGroup";
 import { EmptyState } from "./ui/EmptyState";
 import { Notice } from "./ui/Notice";
+import { XshellImport } from "./XshellImport";
 import { general, updateGeneral } from "../stores/general";
 import {
   flushPersistedState,
@@ -659,6 +660,8 @@ function BackupPane() {
           </button>
         </SettingsRow>
       </SettingsGroup>
+
+      <XshellImport />
 
       <Show when={status()}>
         {(s) => (

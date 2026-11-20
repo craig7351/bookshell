@@ -65,6 +65,7 @@ pub fn run() {
             logger::url_open,
             buttons::buttons_list,
             buttons::buttons_save,
+            buttons::buttons_import,
             buttons::buttons_delete,
             buttons::buttons_reorder,
             clipboard::clipboard_save_image,

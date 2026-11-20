@@ -180,6 +180,8 @@ export const api = {
   buttonsList: () => invoke<CommandButton[]>("buttons_list"),
   buttonsSave: (button: CommandButton) =>
     invoke<void>("buttons_save", { button }),
+  buttonsImport: (buttons: ImportedCommandButton[]) =>
+    invoke<{ added: number; duplicates: number }>("buttons_import", { buttons }),
   buttonsDelete: (id: string) => invoke<void>("buttons_delete", { id }),
   buttonsReorder: (ids: string[]) => invoke<void>("buttons_reorder", { ids }),
 
@@ -335,5 +337,7 @@ export interface CommandButton {
   color?: string | null;
   icon?: string | null;
 }
+
+export type ImportedCommandButton = Pick<CommandButton, "label" | "command" | "send_enter">;
 
 export type { UnlistenFn };
