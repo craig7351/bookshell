@@ -1,5 +1,6 @@
 mod buttons;
 mod clipboard;
+mod claude_chat;
 mod config;
 mod files;
 mod fonts;
@@ -81,6 +82,9 @@ pub fn run() {
             fonts::list_terminal_fonts,
             tabs::tabs_load_state,
             tabs::tabs_save_state,
+            claude_chat::claude_projects,
+            claude_chat::claude_sessions,
+            claude_chat::claude_transcript,
             git::session_exec_capture,
             git::git_view,
             git_watch::git_watch_start,

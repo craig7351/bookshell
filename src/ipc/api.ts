@@ -198,6 +198,12 @@ export const api = {
   tabsLoadState: () => invoke<TabsFile>("tabs_load_state"),
   tabsSaveState: (state: TabsFile) => invoke<void>("tabs_save_state", { state }),
 
+  claudeProjects: (source: ClaudeSource) => invoke<string[]>("claude_projects", { source }),
+  claudeSessions: (source: ClaudeSource, project: string, offset: number, previews: boolean) =>
+    invoke<ClaudeSessionList>("claude_sessions", { source, project, offset, previews }),
+  claudeTranscript: (source: ClaudeSource, project: string, id: string, before?: number, after?: ClaudeCursor) =>
+    invoke<ClaudeTranscriptPage>("claude_transcript", { source, project, id, before, after }),
+
   // Run a command on a fresh SSH exec channel; never touches the PTY.
   // Rejects with "local" for local-PTY sessions.
   sessionExecCapture: (sessionId: string, cmd: string) =>
@@ -225,6 +231,49 @@ export const api = {
   gitCommitFileDiff: (sessionId: string, cwd: string, rev: string, path: string) =>
     invoke<string>("git_commit_file_diff", { sessionId, cwd, rev, path }),
 };
+
+export interface ClaudeSource {
+  sshSessionId: string | null;
+  configDir?: string;
+}
+
+export interface ClaudeSession {
+  id: string;
+  title: string | null;
+  cwd: string | null;
+  modified: number;
+}
+
+interface ClaudeSessionList {
+  sessions: ClaudeSession[];
+  next: number | null;
+}
+
+export interface ClaudeCursor {
+  offset: number;
+  skipPartial: boolean;
+}
+
+export interface ClaudeBlock {
+  kind: "text" | "tool" | "result" | "attachment";
+  label: string | null;
+  text: string;
+}
+
+export interface ClaudeMessage {
+  offset: number;
+  id: string | null;
+  role: "user" | "assistant" | "tool" | "summary";
+  blocks: ClaudeBlock[];
+}
+
+interface ClaudeTranscriptPage {
+  messages: ClaudeMessage[];
+  before: number | null;
+  after: ClaudeCursor;
+  reset: boolean;
+  skipped: boolean;
+}
 
 export interface GitViewData {
   branch: string | null;

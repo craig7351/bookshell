@@ -43,7 +43,7 @@ pub struct DirListing {
 /// Open a one-shot SFTP session over the tab's shared SSH handle. Each call
 /// opens its own subsystem channel (stateless, mirrors `run_exec`); the session
 /// is dropped by the caller when the operation finishes.
-async fn open_sftp(state: &AppState, session_id: &str) -> Result<SftpSession, String> {
+pub(crate) async fn open_sftp(state: &AppState, session_id: &str) -> Result<SftpSession, String> {
     let session = state
         .sessions
         .get(session_id)

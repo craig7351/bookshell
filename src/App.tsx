@@ -1,7 +1,8 @@
-import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, lazy, onCleanup, onMount, Show, Suspense } from "solid-js";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { CommandBar } from "./components/CommandBar";
+import type { ClaudeBinding } from "./components/ClaudeChatPanel";
 import { ConnectionDialog } from "./components/ConnectionDialog";
 import { FileBrowser } from "./components/FileBrowser";
 import { GitPanel } from "./components/GitPanel";
@@ -46,9 +47,13 @@ import {
   restoreTabs,
   setActiveTab,
   supportsShellTools,
+  tabConnectionKind,
   tabs,
   toggleTabPassthrough,
+  type Tab,
 } from "./stores/tabs";
+
+const ClaudeChatPanel = lazy(() => import("./components/ClaudeChatPanel"));
 
 const LAYOUT_LABEL: Record<string, string> = {
   horizontal: "Horizontal",
@@ -75,7 +80,15 @@ export default function App() {
   const [colDragging, setColDragging] = createSignal(false);
   const [filesColDragging, setFilesColDragging] = createSignal(false);
   const [noteOpen, setNoteOpen] = createSignal(false);
+  const [chatOpen, setChatOpen] = createSignal(false);
   const [closeSaveError, setCloseSaveError] = createSignal(false);
+  const chatBindings = new WeakMap<Tab, ClaudeBinding>();
+  const chatAvailable = () => {
+    const tab = activeTab();
+    const kind = tab && tabConnectionKind(tab);
+    return kind === "local" || kind === "ssh";
+  };
+  const chatTab = () => chatOpen() && chatAvailable() ? activeTab() : null;
   const noteTab = () => noteOpen() ? activeTab() : null;
   const panelsOpen = () => {
     const id = shellTabId();
@@ -297,6 +310,7 @@ export default function App() {
         const id = activeTabId();
         if (id) {
           e.preventDefault();
+          setChatOpen(false);
           if (searchTabId() === id) closeSearch();
           else openSearch(id);
         }
@@ -477,6 +491,18 @@ export default function App() {
               <Icon name="sticky-note" size={14} />
               Note
             </button>
+            <button
+              class="bs-btn bs-tip"
+              data-tip={chatAvailable() ? "View Claude Code chat" : "Claude chat requires a local or SSH tab"}
+              aria-label="Claude chat"
+              aria-pressed={!!chatTab()}
+              onClick={() => setChatOpen((open) => !open)}
+              style={segBtn}
+              disabled={!chatAvailable()}
+            >
+              <Icon name="message-square" size={14} />
+              <span class="bs-panel-button-label">Chat</span>
+            </button>
           </div>
 
           <button
@@ -486,6 +512,7 @@ export default function App() {
             onClick={() => {
               const id = activeTabId();
               if (!id) return;
+              setChatOpen(false);
               if (searchTabId() === id) closeSearch();
               else openSearch(id);
             }}
@@ -554,8 +581,20 @@ export default function App() {
                   }
                 >
                   <For each={tabs()}>
-                    {(t) => <TerminalView tab={t} active={t.id === activeTabId()} />}
+                    {(t) => <TerminalView tab={t} active={t.id === activeTabId() && !chatTab()} />}
                   </For>
+                </Show>
+                <Show when={chatTab()} keyed>
+                  {(tab) => (
+                    <Suspense fallback={<div role="status">Loading Claude chat…</div>}>
+                      <ClaudeChatPanel
+                        tab={tab}
+                        initialBinding={chatBindings.get(tab)}
+                        onBind={(binding) => chatBindings.set(tab, binding)}
+                        onClose={() => setChatOpen(false)}
+                      />
+                    </Suspense>
+                  )}
                 </Show>
               </div>
             </div>
