@@ -18,6 +18,10 @@
         font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
         font-size: 13px;
         -webkit-font-smoothing: antialiased;
+        /* App shell: the document itself never scrolls. Panels own their own
+           scrolling; without this a 1px overflow anywhere (tooltip, xterm's
+           helper textarea, ...) pins window-level scrollbars on both axes. */
+        overflow: hidden;
       }
       * { box-sizing: border-box; }
       button { font-family: inherit; }
