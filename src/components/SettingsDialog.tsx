@@ -172,6 +172,22 @@ function GeneralPane() {
         </SettingsRow>
       </SettingsGroup>
 
+      <SettingsGroup label="AI sessions">
+        <SettingsRow
+          label="Background alerts"
+          hint="Flash the taskbar when an AI tab finishes or needs you while BOOKSHELL is in the background. For Claude Code, set preferredNotifChannel to terminal_bell so permission prompts ring."
+        >
+          <label style={{ display: "inline-flex", "align-items": "center", gap: "6px", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={general().ai_alerts}
+              onChange={(e) => updateGeneral({ ai_alerts: e.currentTarget.checked })}
+            />
+            Enabled
+          </label>
+        </SettingsRow>
+      </SettingsGroup>
+
       <SettingsGroup label="Git">
         <SettingsRow
           label="Auto-refresh"

@@ -64,6 +64,8 @@ const PATHS = {
   check: '<path d="M20 6 9 17l-5-5"/>',
   "chevron-right": '<path d="m9 18 6-6-6-6"/>',
   "chevron-left": '<path d="m15 18-6-6 6-6"/>',
+  "loader-circle": '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  bell: '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/>',
   "chevron-down": '<path d="m6 9 6 6 6-6"/>',
   "refresh-cw":
     '<path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/>',

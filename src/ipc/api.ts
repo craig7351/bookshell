@@ -379,6 +379,7 @@ export interface GeneralSettings {
   terminal_foreground: string | null;
   terminal_background: string | null;
   tab_position: TabPosition;
+  ai_alerts: boolean;
 }
 
 export type TabPosition = "left" | "top";

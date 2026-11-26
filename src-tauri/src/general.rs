@@ -25,6 +25,10 @@ pub struct GeneralSettings {
     /// Where the tab strip lives: "left" (vertical sidebar) or "top" (in the header).
     #[serde(default = "default_tab_position")]
     pub tab_position: String,
+    /// Flash the taskbar when an AI tab finishes or needs attention while the
+    /// window is in the background.
+    #[serde(default = "default_true")]
+    pub ai_alerts: bool,
 }
 
 impl Default for GeneralSettings {
@@ -39,6 +43,7 @@ impl Default for GeneralSettings {
             terminal_foreground: None,
             terminal_background: None,
             tab_position: default_tab_position(),
+            ai_alerts: true,
         }
     }
 }
@@ -54,6 +59,9 @@ fn default_side_font_size() -> u32 {
 }
 fn default_git_poll_secs() -> u32 {
     5
+}
+fn default_true() -> bool {
+    true
 }
 fn default_tab_position() -> String {
     "left".to_string()

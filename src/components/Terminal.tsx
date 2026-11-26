@@ -17,6 +17,7 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 import { api } from "../ipc/api";
 import { registerOsc52 } from "./osc52";
 import { installMiddleClickPaste } from "./middlePaste";
+import { registerAiSignals } from "./aiSignals";
 import {
   bumpFit,
   onTabClose,
@@ -318,6 +319,9 @@ export function TerminalView(props: Props) {
     );
     // Let mouse-grabbing TUIs (Claude Code, tmux) copy via OSC 52.
     registerOsc52(term);
+    // AI agent working / needs-you / done badges for the tab (aiSignals.ts).
+    const aiSignals = registerAiSignals(term, props.tab.id);
+    onCleanup(() => aiSignals.dispose());
     // The WebGL addon is mounted by the active-tab effect below, after open.
     term.open(host);
     fit.fit();

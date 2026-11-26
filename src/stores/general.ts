@@ -15,6 +15,7 @@ const defaults: GeneralSettings = {
   scrollback: 10000,
   git_poll_secs: 5,
   tab_position: "left",
+  ai_alerts: true,
 };
 
 const [general, setGeneral] = createSignal<GeneralSettings>(defaults);
