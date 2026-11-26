@@ -278,6 +278,11 @@ export function TerminalView(props: Props) {
   onMount(() => {
     const settings = general();
     term = new Terminal({
+      linkHandler: {
+        activate: (_ev, uri) => {
+          api.urlOpen(uri).catch((e) => console.warn("url_open failed", e));
+        },
+      },
       cursorBlink: true,
       fontFamily: terminalFontFamily(settings.terminal_font_family),
       fontSize: settings.font_size,
