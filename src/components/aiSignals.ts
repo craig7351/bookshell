@@ -1,12 +1,14 @@
 import type { IDisposable, Terminal } from "@xterm/xterm";
-import { aiAttention, aiFinished, aiForget, aiWorking } from "../stores/aiStatus";
+import { aiAttention, aiFinished, aiForget, aiPresence, aiWorking } from "../stores/aiStatus";
 
 /**
  * Title prefixes that mean "an agent is working". Claude Code animates its
- * window title between ◐ / ◑ while busy and shows ✳ when idle; braille
+ * window title between ◐ / ◑ while busy and shows 2733 when idle; braille
  * spinner frames (⠋⠙⠹…) cover the many CLIs that use them.
  */
-const WORKING_TITLE = /^\s*[◐-◓⠀-⣿]/;
+const WORKING_TITLE = /^\s*[\u25D0-\u25D3\u2800-\u28FF]/;
+/** Working prefixes plus Claude Code's idle 2733: an agent session is open. */
+const SESSION_TITLE = /^\s*[\u25D0-\u25D3\u2733\u2800-\u28FF]/;
 
 /**
  * Watch one terminal for AI-agent signals. Everything here is in-band (escape
@@ -31,7 +33,10 @@ export function registerAiSignals(term: Terminal, tabId: string): IDisposable {
   };
 
   const disposables: IDisposable[] = [
-    term.onTitleChange((title) => setTitleWorking(WORKING_TITLE.test(title))),
+    term.onTitleChange((title) => {
+      aiPresence(tabId, SESSION_TITLE.test(title));
+      setTitleWorking(WORKING_TITLE.test(title));
+    }),
     term.onBell(() => aiAttention(tabId)),
     term.parser.registerOscHandler(9, (data) => {
       if (data.startsWith("4;")) {

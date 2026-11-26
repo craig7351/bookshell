@@ -16,7 +16,9 @@ export type ActionId =
   | "prevTab"
   | "nextTab"
   | "moveTabPrev"
-  | "moveTabNext";
+  | "moveTabNext"
+  | "prevAiTab"
+  | "nextAiTab";
 
 export interface ActionDef {
   id: ActionId;
@@ -29,6 +31,8 @@ export const ACTIONS: ActionDef[] = [
   { id: "nextTab",     label: "Next tab",          desc: "Switch focus to the next tab" },
   { id: "moveTabPrev", label: "Move tab left",     desc: "Reorder active tab one position left (wraps)" },
   { id: "moveTabNext", label: "Move tab right",    desc: "Reorder active tab one position right (wraps)" },
+  { id: "prevAiTab",   label: "Previous AI session", desc: "Switch to the previous tab with an AI session (the header chips; wraps)" },
+  { id: "nextAiTab",   label: "Next AI session",     desc: "Switch to the next tab with an AI session (the header chips; wraps)" },
 ];
 
 const defaults: Record<ActionId, Binding[]> = {
@@ -45,6 +49,12 @@ const defaults: Record<ActionId, Binding[]> = {
   ],
   moveTabNext: [
     { ctrl: true, shift: true, alt: false, meta: false, key: "PageDown" },
+  ],
+  prevAiTab: [
+    { ctrl: false, shift: true, alt: false, meta: false, key: "ArrowLeft" },
+  ],
+  nextAiTab: [
+    { ctrl: false, shift: true, alt: false, meta: false, key: "ArrowRight" },
   ],
 };
 

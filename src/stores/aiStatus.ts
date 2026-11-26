@@ -1,7 +1,7 @@
 import { createEffect, createRoot, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
-import { activeTabId } from "./tabs";
+import { activeTabId, tabs } from "./tabs";
 import { general } from "./general";
 
 /**
@@ -20,6 +20,19 @@ export type AiState = "working" | "attention" | "done";
 const [ai, setAi] = createStore<Record<string, AiState | undefined>>({});
 
 export const aiStateOf = (tabId: string): AiState | undefined => ai[tabId];
+
+/** Tabs whose title currently says an agent session is open (working or
+ *  idle), so they stay listed in the header dock between alerts. */
+const [present, setPresent] = createStore<Record<string, true | undefined>>({});
+
+export const aiPresent = (tabId: string): boolean => present[tabId] === true;
+
+/** Tabs with an AI session or a pending alert, in tab order (the header dock). */
+export const aiTabs = () => tabs().filter((t) => aiPresent(t.id) || aiStateOf(t.id));
+
+export function aiPresence(tabId: string, on: boolean) {
+  if (aiPresent(tabId) !== on) setPresent(tabId, on ? true : undefined);
+}
 
 const [windowFocused, setWindowFocused] = createSignal(document.hasFocus());
 window.addEventListener("focus", () => setWindowFocused(true));
@@ -71,4 +84,5 @@ export function aiAttention(tabId: string) {
 
 export function aiForget(tabId: string) {
   setAi(tabId, undefined);
+  setPresent(tabId, undefined);
 }

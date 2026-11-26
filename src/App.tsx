@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { CommandBar } from "./components/CommandBar";
 import type { ClaudeBinding } from "./components/ClaudeChatPanel";
 import { ConnectionDialog } from "./components/ConnectionDialog";
+import { AiDock } from "./components/AiDock";
 import { FileBrowser } from "./components/FileBrowser";
 import { GitPanel } from "./components/GitPanel";
 import { NotePanel } from "./components/NotePanel";
@@ -23,6 +24,7 @@ import { connectionUnavailable, isMac, loadConnections } from "./stores/connecti
 import { general, loadGeneral } from "./stores/general";
 import { closeSearch, openSearch, searchTabId } from "./stores/search";
 import { actionFor } from "./stores/shortcuts";
+import { aiTabs } from "./stores/aiStatus";
 import { Icon, type IconName } from "./icons";
 import { Kbd } from "./components/ui/Kbd";
 import { Notice } from "./components/ui/Notice";
@@ -243,6 +245,21 @@ export default function App() {
           const tag = tgt.tagName;
           if (tag === "INPUT" || tag === "TEXTAREA" || tgt.isContentEditable) return;
         }
+        // Shift+←/→ (default): cycle the AI-session tabs shown in the header
+        // dock. With no AI tab the key falls through to the terminal.
+        if (action === "prevAiTab" || action === "nextAiTab") {
+          const ai = aiTabs();
+          if (ai.length === 0) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const at = ai.findIndex((t) => t.id === activeTabId());
+          const step = action === "prevAiTab" ? -1 : 1;
+          const next = at < 0
+            ? (step > 0 ? 0 : ai.length - 1)
+            : (at + step + ai.length) % ai.length;
+          setActiveTab(ai[next].id);
+          return;
+        }
         const list = tabs();
         if (list.length < 2) return;
         e.preventDefault();
@@ -392,7 +409,9 @@ export default function App() {
           </div>
         </Show>
 
-        <Show when={tabsTop()}>
+        {/* Top mode: the tab strip lives here. Left mode: the AI session dock
+         *  (renders nothing when no tab has an AI session). */}
+        <Show when={tabsTop()} fallback={<AiDock />}>
           <TabBar orientation="horizontal" onNew={() => setShowDialog(true)} />
         </Show>
 
