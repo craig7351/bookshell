@@ -366,6 +366,8 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string; onFoc
   return (
     <div
       ref={host}
+      // Lets the CommandBar send to this terminal when it holds focus.
+      data-side-session={props.sessionId}
       // content-box: FitAddon reads the parent's computed size, which under
       // the global border-box reset would include this padding and over-fit.
       style={{ position: "absolute", inset: "0", padding: "6px 8px 4px 10px", "box-sizing": "content-box", background: theme().background }}

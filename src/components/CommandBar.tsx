@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
-import type { CommandButton } from "../ipc/api";
+import { api, type CommandButton } from "../ipc/api";
 import { buttons, loadButtons } from "../stores/buttons";
 import { Icon } from "../icons";
 import { activeTab, bumpFit, supportsShellTools, writeTabInput } from "../stores/tabs";
@@ -19,8 +19,19 @@ const EDGE = 8;
 /** How long the sent-flash stays on a pill. */
 const FLASH_MS = 400;
 
+/** Where a button press goes: the side terminal if it held keyboard focus
+ *  when the button was pressed, otherwise (null) the active tab's terminal. */
+type Target = { side: string; returnFocus: HTMLElement } | null;
+
+function currentTarget(): Target {
+  const el = document.activeElement as HTMLElement | null;
+  const side = el?.closest<HTMLElement>("[data-side-session]")?.dataset.sideSession;
+  return side && el ? { side, returnFocus: el } : null;
+}
+
 interface Pending {
   b: CommandButton;
+  target: Target;
   /** Viewport coordinates: the popover grows upward from the pill. */
   left: number;
   bottom: number;
@@ -79,7 +90,21 @@ export function CommandBar(props: Props) {
     window.setTimeout(() => setFlashId((cur) => (cur === id ? null : cur)), FLASH_MS);
   }
 
-  async function send(b: CommandButton) {
+  async function send(b: CommandButton, target: Target) {
+    if (target) {
+      const write = (data: string) => api.sshWrite(target.side, data);
+      if (b.command.includes("\n")) {
+        for (const line of b.command.split("\n")) {
+          await write(line);
+          await write("\r");
+        }
+      } else {
+        await write(b.command + (b.send_enter ? "\r" : ""));
+      }
+      // Back to the side terminal (the confirm popover may have taken focus).
+      target.returnFocus.focus();
+      return;
+    }
     const t = activeTab();
     if (!t || !t.sessionId) {
       alert("No active connected tab");
@@ -104,21 +129,24 @@ export function CommandBar(props: Props) {
     bumpFit(t.id);
   }
 
-  function run(b: CommandButton) {
+  function run(b: CommandButton, target: Target) {
     flash(b.id);
-    send(b).catch(console.error);
+    send(b, target).catch(console.error);
   }
 
   function handleClick(b: CommandButton, el: HTMLElement) {
+    // Read the target now, before a confirm popover can move focus.
+    const target = currentTarget();
     if (b.confirm) {
       const r = el.getBoundingClientRect();
       setPending({
         b,
+        target,
         left: Math.max(EDGE, Math.min(r.left, window.innerWidth - POP_W - EDGE)),
         bottom: window.innerHeight - r.top + 6,
       });
     } else {
-      run(b);
+      run(b, target);
     }
   }
 
@@ -148,6 +176,9 @@ export function CommandBar(props: Props) {
             return (
               <button
                 class="bs-pill"
+                // Don't take focus on click: the terminal that had it (main
+                // or side) keeps the caret and receives the command.
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleClick(b, e.currentTarget);
@@ -213,7 +244,7 @@ export function CommandBar(props: Props) {
               <button
                 class="bs-btn"
                 onClick={() => {
-                  run(p().b);
+                  run(p().b, p().target);
                   setPending(null);
                 }}
                 style={button("danger", "default")}
