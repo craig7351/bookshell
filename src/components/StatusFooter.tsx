@@ -171,20 +171,50 @@ export function StatusFooter() {
   );
 }
 
+function exportDiag() {
+  const text = diagEntries()
+    .map((e) => {
+      const d = new Date(e.ts_ms);
+      return `${d.toISOString()} [${e.level.toUpperCase()}] ${e.target}: ${e.message}`;
+    })
+    .join("\n");
+  const blob = new Blob([text + "\n"],{ type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  a.href = url;
+  a.download = `bookshell-log-${stamp}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function DiagPopover() {
   return (
     <div style={popoverStyle}>
       <div style={popoverHeader}>
         <span style={TYPO.section}>Recent log · {diagEntries().length}</span>
-        <button
-          type="button"
-          class="bs-btn"
-          onClick={() => clearDiag()}
-          style={button("secondary", "compact")}
-          disabled={diagEntries().length === 0}
-        >
-          Clear
-        </button>
+        <div style={{ display: "flex", gap: "6px" }}>
+          <button
+            type="button"
+            class="bs-btn"
+            onClick={exportDiag}
+            style={button("secondary", "compact")}
+            disabled={diagEntries().length === 0}
+          >
+            Export
+          </button>
+          <button
+            type="button"
+            class="bs-btn"
+            onClick={() => clearDiag()}
+            style={button("secondary", "compact")}
+            disabled={diagEntries().length === 0}
+          >
+            Clear
+          </button>
+        </div>
       </div>
       <div style={popoverList}>
         <Show
