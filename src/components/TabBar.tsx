@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 
 const [tabBarWidth, setTabBarWidth] = createSignal(190);
 const MIN_W = 140;
@@ -35,6 +35,10 @@ import { StartupCommandDialog } from "./StartupCommandDialog";
 
 interface Props {
   onNew: () => void;
+  /** "vertical" (default): the resizable sidebar. "horizontal": a strip that
+   *  lives inside the header. Fixed for the lifetime of the instance; App
+   *  remounts the bar when the setting changes. */
+  orientation?: "vertical" | "horizontal";
 }
 
 const COLORS = [
@@ -83,6 +87,7 @@ type Row =
   | { kind: "tab"; tab: Tab };
 
 export function TabBar(props: Props) {
+  const horiz = props.orientation === "horizontal";
   const [menu, setMenu] = createSignal<{ x: number; y: number; tab: Tab } | null>(null);
   const [groupMenu, setGroupMenu] = createSignal<{ x: number; y: number; group: TabGroup } | null>(null);
   const [renamingId, setRenamingId] = createSignal<string | null>(null);
@@ -138,6 +143,11 @@ export function TabBar(props: Props) {
     document.addEventListener("mouseup", onUp);
   }
 
+  /** 0..1 position of the pointer along the bar's main axis within `rect`. */
+  function along(event: MouseEvent, rect: DOMRect): number {
+    return horiz ? (event.clientX - rect.left) / rect.width : (event.clientY - rect.top) / rect.height;
+  }
+
   function locateDrop(source: DragSource, event: MouseEvent): DropIntent | null {
     const el = document.elementFromPoint(event.clientX, event.clientY);
     const slot = el?.closest<HTMLElement>("[data-tab-slot]");
@@ -154,14 +164,12 @@ export function TabBar(props: Props) {
         : tabId ? { kind: "tab", id: tabId } : undefined;
       if (!reference || !target) return null;
       const rect = reference.getBoundingClientRect();
-      return { kind: "reorder-group", target, edge: event.clientY < rect.top + rect.height / 2 ? "before" : "after" };
+      return { kind: "reorder-group", target, edge: along(event, rect) < 0.5 ? "before" : "after" };
     }
 
     if (header?.dataset.groupSlot) return { kind: "group-header", id: header.dataset.groupSlot };
     if (!slot || !tabId || tabId === source.id) return null;
-    const rect = slot.getBoundingClientRect();
-    const ratio = (event.clientY - rect.top) / rect.height;
-    return { kind: ratio < 0.4 ? "before" : "group", id: tabId };
+    return { kind: along(event, slot.getBoundingClientRect()) < 0.4 ? "before" : "group", id: tabId };
   }
 
   function moveGroup(groupId: string, intent: Extract<DropIntent, { kind: "reorder-group" | "end" }>) {
@@ -379,28 +387,39 @@ export function TabBar(props: Props) {
         tabindex={t.id === activeTabId() ? 0 : -1}
         style={{
           ...rowStyle,
-          height: t.cwd ? "40px" : H.row,
+          ...(horiz ? hTabStyle : {}),
+          height: horiz ? H.roomy : t.cwd ? "40px" : H.row,
+          // Give the rename field room; a horizontal tab otherwise hugs its name.
+          "min-width": horiz && renamingId() === t.id ? "140px" : undefined,
           // Background and foreground are class-driven; only slots go inline.
           "--btn-bg": isGroupMerge() ? C.accentBg : "transparent",
           "--btn-fg": isActive() ? C.text : C.text2,
           "--btn-fg-hover": C.text,
           // A coloured tab tints its own selected fill. base.css falls back to
           // --fill-selected where color-mix() is unsupported.
-          "--btn-bg-selected": t.color
-            ? `color-mix(in srgb, ${t.color} 18%, transparent)`
-            : C.bgSelected,
-          "font-weight": isActive() ? 500 : 400,
-          "box-shadow": isGroupMerge() ? `inset 0 0 0 1.5px ${C.accent}` : "none",
+          // The active tab gets an accent (or its own colour) tint + outline,
+          // plus the indicator bar below, so it stands out from its siblings.
+          "--btn-bg-selected": `color-mix(in srgb, ${t.color ?? C.accent} 22%, transparent)`,
+          "font-weight": isActive() ? 600 : 400,
+          "box-shadow": isGroupMerge()
+            ? `inset 0 0 0 1.5px ${C.accent}`
+            : isActive()
+              ? `inset 0 0 0 1px color-mix(in srgb, ${t.color ?? C.accent} 55%, transparent)`
+              : "none",
           opacity: dragging()?.kind === "tab" && dragging()?.id === t.id ? 0.35 : 1,
         }}
-        title={t.errorMessage ?? t.name}
+        title={t.errorMessage ?? (horiz && t.cwd ? `${t.name}\n${t.cwd}` : t.name)}
       >
         <Show when={isBefore()}>
-          <div style={dropBarStyle} />
+          <div style={horiz ? vDropBarStyle : dropBarStyle} />
         </Show>
-        <Show when={groupEdge()}>{(edge) => <div style={groupDropBarStyle(edge())} />}</Show>
-        <Show when={t.color}>
+        <Show when={groupEdge()}>{(edge) => <div style={groupDropBarStyle(edge(), horiz)} />}</Show>
+        <Show when={t.color && !isActive()}>
           <div style={{ ...railStyle, background: t.color! }} />
+        </Show>
+        {/* Indicator: underline in the horizontal strip, left bar in the sidebar. */}
+        <Show when={isActive()}>
+          <div style={{ ...(horiz ? activeUnderlineStyle : activeSideBarStyle), background: t.color ?? C.accent }} />
         </Show>
         <div style={tabTopRowStyle}>
           <div style={leadSlotStyle} title={t.status}>
@@ -459,7 +478,8 @@ export function TabBar(props: Props) {
             </button>
           </div>
         </div>
-        <Show when={t.cwd}>
+        {/* Horizontal tabs are one line; the cwd moves into the tooltip. */}
+        <Show when={t.cwd && !horiz}>
           <div style={cwdRowStyle}>{shortCwd(t.cwd!)}</div>
         </Show>
       </div>
@@ -484,9 +504,14 @@ export function TabBar(props: Props) {
     return (
       <div
         data-group-block={group.id}
-        style={{ ...groupBlockStyle, opacity: beingMoved() ? 0.35 : 1 }}
+        style={{
+          ...(horiz ? hGroupBlockStyle : groupBlockStyle),
+          // Horizontal groups read as one tinted island in the strip.
+          background: horiz ? `color-mix(in srgb, ${group.color ?? C.text} 7%, transparent)` : undefined,
+          opacity: beingMoved() ? 0.35 : 1,
+        }}
       >
-        <Show when={groupEdge()}>{(edge) => <div style={groupDropBarStyle(edge())} />}</Show>
+        <Show when={groupEdge()}>{(edge) => <div style={groupDropBarStyle(edge(), horiz)} />}</Show>
         <div
           class="bs-row"
           data-group-slot={group.id}
@@ -511,6 +536,7 @@ export function TabBar(props: Props) {
           onContextMenu={(e) => openGroupMenu(e, group)}
           style={{
             ...groupHeaderStyle,
+            ...(horiz ? { height: H.default } : {}),
             cursor: beingMoved() ? "grabbing" : "grab",
             "--btn-bg": isHeaderTarget() ? C.accentBg : headerFill(),
             "--btn-bg-hover": isHeaderTarget() ? C.accentBg : `color-mix(in srgb, ${headerFill()} 94%, ${C.text})`,
@@ -533,7 +559,7 @@ export function TabBar(props: Props) {
           </div>
           <Show
             when={editingName()}
-            fallback={<span style={groupNameStyle}>{group.name}</span>}
+            fallback={<span style={horiz ? { ...groupNameStyle, "max-width": "120px" } : groupNameStyle}>{group.name}</span>}
           >
             <input
               value={group.name}
@@ -557,10 +583,145 @@ export function TabBar(props: Props) {
           <span aria-hidden="true" style={countPillStyle}>{members.length}</span>
         </div>
         <Show when={!group.collapsed}>
-          <div style={groupMembersStyle}>
+          <div style={horiz ? hGroupMembersStyle : groupMembersStyle}>
             <For each={members}>{(m) => renderTab(m, true)}</For>
           </div>
         </Show>
+      </div>
+    );
+  }
+
+  /** The menus live outside the (masked / scrolling) list: a mask clips its
+   *  subtree and opens a stacking context, which would swallow a fixed popover. */
+  const overlays = () => (
+    <>
+      <Show when={menu()}>
+        {(m) => (
+          <ContextMenu
+            x={m().x}
+            y={m().y}
+            items={buildMenu(m().tab)}
+            onClose={() => setMenu(null)}
+          />
+        )}
+      </Show>
+      <Show when={groupMenu()}>
+        {(m) => (
+          <ContextMenu
+            x={m().x}
+            y={m().y}
+            items={buildGroupMenu(m().group)}
+            onClose={() => setGroupMenu(null)}
+          />
+        )}
+      </Show>
+      <Show when={tabs().find((tab) => tab.id === startupCommandTabId())} keyed>
+        {(tab) => <StartupCommandDialog tab={tab} onClose={() => setStartupCommandTabId(null)} />}
+      </Show>
+    </>
+  );
+
+  const renderRows = () => (
+    <For each={rows()}>
+      {(row) =>
+        row.kind === "group"
+          ? renderGroup(row.group, row.members)
+          : renderTab(row.tab, false)
+      }
+    </For>
+  );
+
+  if (horiz) {
+    let scroller: HTMLDivElement | undefined;
+    // Keep the active tab visible when it changes (Ctrl+Tab, new tab, ...).
+    createEffect(() => {
+      const id = activeTabId();
+      if (!id) return;
+      queueMicrotask(() => {
+        scroller
+          ?.querySelector<HTMLElement>(`[data-tab-slot="${CSS.escape(id)}"]`)
+          ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      });
+    });
+
+    // Overflow arrows: shown only when the strip overflows, each disabled at
+    // its end. Re-measured on scroll, on resize and whenever the rows change.
+    const [canLeft, setCanLeft] = createSignal(false);
+    const [canRight, setCanRight] = createSignal(false);
+    const measure = () => {
+      if (!scroller) return;
+      const max = scroller.scrollWidth - scroller.clientWidth;
+      setCanLeft(scroller.scrollLeft > 1);
+      setCanRight(scroller.scrollLeft < max - 1);
+    };
+    const resizeObserver = new ResizeObserver(measure);
+    onCleanup(() => resizeObserver.disconnect());
+    createEffect(() => {
+      rows();
+      renamingId();
+      requestAnimationFrame(measure);
+    });
+    const scrollByPage = (dir: -1 | 1) =>
+      scroller?.scrollBy({ left: dir * Math.max(120, scroller.clientWidth * 0.7), behavior: "smooth" });
+
+    return (
+      <div style={hBarStyle}>
+        <Show when={canLeft() || canRight()}>
+          <button
+            class="bs-iconbtn bs-tip"
+            data-tip="Scroll tabs left"
+            aria-label="Scroll tabs left"
+            disabled={!canLeft()}
+            onClick={() => scrollByPage(-1)}
+            style={hArrowBtnStyle}
+          >
+            <Icon name="chevron-left" size={16} stroke={2.5} />
+          </button>
+        </Show>
+        <div
+          ref={(el) => {
+            scroller = el;
+            resizeObserver.observe(el);
+          }}
+          class="bs-hscroll"
+          style={hScrollStyle}
+          onScroll={measure}
+          // A plain mouse wheel scrolls the strip sideways.
+          onWheel={(e) => {
+            if (!scroller || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+            scroller.scrollLeft += e.deltaY;
+            e.preventDefault();
+          }}
+        >
+          {renderRows()}
+          <div data-tab-slot="__end__" style={hEndSlotStyle}>
+            <Show when={dropIntent()?.kind === "end" && dragging()}>
+              <div style={{ ...vDropBarStyle, left: "4px" }} />
+            </Show>
+          </div>
+        </div>
+        <Show when={canLeft() || canRight()}>
+          <button
+            class="bs-iconbtn bs-tip"
+            data-tip="Scroll tabs right"
+            aria-label="Scroll tabs right"
+            disabled={!canRight()}
+            onClick={() => scrollByPage(1)}
+            style={hArrowBtnStyle}
+          >
+            <Icon name="chevron-right" size={16} stroke={2.5} />
+          </button>
+        </Show>
+        <button
+          class="bs-iconbtn bs-tip"
+          data-tip="New tab (Ctrl+Shift+T)"
+          aria-label="New tab"
+          onClick={props.onNew}
+          style={hNewBtnStyle}
+        >
+          <Icon name="plus" size={16} />
+        </button>
+        {overlays()}
       </div>
     );
   }
@@ -569,13 +730,7 @@ export function TabBar(props: Props) {
     <div style={{ display: "flex", width: `${tabBarWidth()}px`, "flex-shrink": 0 }}>
       <div style={columnStyle}>
         <div class="bs-scroll-fade" style={scrollStyle}>
-          <For each={rows()}>
-            {(row) =>
-              row.kind === "group"
-                ? renderGroup(row.group, row.members)
-                : renderTab(row.tab, false)
-            }
-          </For>
+          {renderRows()}
           <div data-tab-slot="__end__" style={{ ...endSlotStyle, "flex-grow": dragging()?.kind === "group" ? 1 : 0 }}>
             <Show when={dropIntent()?.kind === "end" && dragging()}>
               <div style={{ ...dropBarStyle, top: "4px" }} />
@@ -608,31 +763,7 @@ export function TabBar(props: Props) {
         title="Drag to resize"
       />
 
-      {/* The menus live outside the masked scroller: a mask clips its subtree
-       *  and opens a stacking context, which would swallow a fixed popover. */}
-      <Show when={menu()}>
-        {(m) => (
-          <ContextMenu
-            x={m().x}
-            y={m().y}
-            items={buildMenu(m().tab)}
-            onClose={() => setMenu(null)}
-          />
-        )}
-      </Show>
-      <Show when={groupMenu()}>
-        {(m) => (
-          <ContextMenu
-            x={m().x}
-            y={m().y}
-            items={buildGroupMenu(m().group)}
-            onClose={() => setGroupMenu(null)}
-          />
-        )}
-      </Show>
-      <Show when={tabs().find((tab) => tab.id === startupCommandTabId())} keyed>
-        {(tab) => <StartupCommandDialog tab={tab} onClose={() => setStartupCommandTabId(null)} />}
-      </Show>
+      {overlays()}
     </div>
   );
 }
@@ -787,7 +918,10 @@ const dropBarStyle = {
   "pointer-events": "none",
 } as const;
 
-function groupDropBarStyle(edge: DropEdge) {
+function groupDropBarStyle(edge: DropEdge, horizontal = false) {
+  if (horizontal) {
+    return { ...vDropBarStyle, left: edge === "before" ? "-2px" : undefined, right: edge === "after" ? "-2px" : undefined, "z-index": 1 } as const;
+  }
   return { ...dropBarStyle, top: edge === "before" ? "-1px" : undefined, bottom: edge === "after" ? "-1px" : undefined, "z-index": 1 } as const;
 }
 
@@ -891,4 +1025,120 @@ const newBtnStyle = {
   "--btn-bg-hover": C.accentBg,
   "--btn-fg": C.accent,
   "--btn-fg-hover": C.accentHover,
+} as const;
+
+/* ---------------------------------------------------------- horizontal */
+
+/** The strip fills the header's free space; the list hugs its tabs so the
+ *  "+" button sits right after the last one, browser-style. */
+const hBarStyle = {
+  display: "flex",
+  "align-items": "center",
+  gap: S[1],
+  flex: "1 1 0",
+  "min-width": 0,
+  height: "100%",
+} as const;
+
+const hScrollStyle = {
+  display: "flex",
+  "align-items": "center",
+  gap: S[0.5],
+  flex: "0 1 auto",
+  "min-width": 0,
+  height: "100%",
+  "overflow-x": "auto",
+  "overflow-y": "hidden",
+} as const;
+
+/** One-line tab that hugs its name, capped so a long name ellipsizes. */
+const hTabStyle = {
+  "flex-shrink": 0,
+  "max-width": "200px",
+  padding: "0 6px 0 8px",
+} as const;
+
+const hGroupBlockStyle = {
+  position: "relative",
+  display: "flex",
+  "align-items": "center",
+  "flex-shrink": 0,
+  gap: S[0.5],
+  padding: S[0.5],
+  "border-radius": R.md,
+} as const;
+
+const hGroupMembersStyle = {
+  display: "flex",
+  "align-items": "center",
+  gap: S[0.5],
+} as const;
+
+/** Vertical insert marker for the horizontal strip. */
+const vDropBarStyle = {
+  position: "absolute",
+  top: "4px",
+  bottom: "4px",
+  left: "-2px",
+  width: "2px",
+  "border-radius": R.full,
+  background: C.accent,
+  "pointer-events": "none",
+} as const;
+
+/** Drop target for moving a tab or group to the end of the strip. */
+const hEndSlotStyle = {
+  position: "relative",
+  "align-self": "stretch",
+  "min-width": S[3],
+  "flex-shrink": 0,
+} as const;
+
+const hNewBtnStyle = {
+  width: H.default,
+  height: H.default,
+  padding: "0",
+  border: "none",
+  cursor: "pointer",
+  "flex-shrink": 0,
+  "border-radius": R.sm,
+  "--btn-fg": C.accent,
+  "--btn-fg-hover": C.accentHover,
+} as const;
+
+/** Overflow scroll arrows either side of the strip. */
+const hArrowBtnStyle = {
+  width: H.roomy,
+  height: H.roomy,
+  padding: "0",
+  border: `1px solid ${C.border}`,
+  cursor: "pointer",
+  "flex-shrink": 0,
+  "border-radius": R.sm,
+  "--btn-bg": C.bg3,
+  "--btn-bg-hover": C.accentBg,
+  "--btn-fg": C.accent,
+  "--btn-fg-hover": C.accentHover,
+} as const;
+
+/** Accent underline marking the active tab in the horizontal strip. */
+const activeUnderlineStyle = {
+  position: "absolute",
+  left: "8px",
+  right: "8px",
+  bottom: "0",
+  height: "3px",
+  "border-radius": R.full,
+  "pointer-events": "none",
+} as const;
+
+/** Accent bar marking the active tab in the vertical sidebar. */
+const activeSideBarStyle = {
+  position: "absolute",
+  left: "0",
+  top: "6px",
+  bottom: "6px",
+  width: "3px",
+  "border-radius": R.full,
+  "pointer-events": "none",
 } as const;

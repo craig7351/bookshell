@@ -398,6 +398,14 @@ body.bs-dragging * {
    padding, so the first and last rows are only touched once the list actually
    scrolls under it. scrollbar-gutter keeps the 14px track reserved, so rows
    never reflow when the list grows past the viewport. */
+/* Horizontal tab strip: scrolls with the wheel, no visible scrollbar. */
+.bs-hscroll {
+  scrollbar-width: none;
+}
+.bs-hscroll::-webkit-scrollbar {
+  display: none;
+}
+
 .bs-scroll-fade {
   scrollbar-gutter: stable;
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);

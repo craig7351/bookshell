@@ -20,7 +20,7 @@ import { gitWidth, isGitOpen, setGitWidth, toggleGit } from "./stores/git";
 import { cycleLayout, layoutMode, setLayout } from "./stores/layout";
 import { api, type Connection } from "./ipc/api";
 import { connectionUnavailable, isMac, loadConnections } from "./stores/connections";
-import { loadGeneral } from "./stores/general";
+import { general, loadGeneral } from "./stores/general";
 import { closeSearch, openSearch, searchTabId } from "./stores/search";
 import { actionFor } from "./stores/shortcuts";
 import { Icon, type IconName } from "./icons";
@@ -68,6 +68,7 @@ const LAYOUT_ICON: Record<string, IconName> = {
 };
 
 export default function App() {
+  const tabsTop = () => general().tab_position === "top";
   const shellTabId = () => {
     const tab = activeTab();
     return tab && supportsShellTools(tab) ? tab.id : null;
@@ -391,10 +392,9 @@ export default function App() {
           </div>
         </Show>
 
-        <div style={{ display: "flex", "align-items": "center", gap: S[1.5], "flex-shrink": 0 }}>
-          <Icon name="terminal" size={16} style={{ color: C.text3 }} />
-          <span style={brandStyle}>BOOKSHELL</span>
-        </div>
+        <Show when={tabsTop()}>
+          <TabBar orientation="horizontal" onNew={() => setShowDialog(true)} />
+        </Show>
 
         <Show when={activeTab()}>
           {(t) => (
@@ -533,7 +533,9 @@ export default function App() {
       </div>
 
       <div style={{ display: "flex", flex: 1, "min-height": 0 }}>
-        <TabBar onNew={() => setShowDialog(true)} />
+        <Show when={!tabsTop()}>
+          <TabBar onNew={() => setShowDialog(true)} />
+        </Show>
         <div style={{ flex: 1, display: "flex", "flex-direction": "column", "min-width": 0 }}>
           <div style={{
             flex: 1,
@@ -547,7 +549,11 @@ export default function App() {
              *  so padding on the terminals' own containing block would be
              *  invisible. Left/bottom stay flush against the TabBar and the
              *  CommandBar. */}
-            <div style={{ flex: 1, "min-width": 0, "min-height": 0, display: "flex", padding: `${S[1.5]} ${S[1.5]} 0 0` }}>
+            <div style={{
+              flex: 1, "min-width": 0, "min-height": 0, display: "flex",
+              // With no sidebar to sit flush against, the card gets a left gutter too.
+              padding: `${S[1.5]} ${S[1.5]} 0 ${tabsTop() ? S[1.5] : "0"}`,
+            }}>
               <div style={{ flex: 1, position: "relative", "min-width": 0, "min-height": 0 }}>
                 <Show
                   when={tabs().length > 0}
@@ -702,13 +708,6 @@ const headerStyle = {
   gap: S[2],
   "align-items": "center",
   "flex-shrink": 0,
-} as const;
-
-const brandStyle = {
-  ...T[12],
-  "font-weight": 600,
-  color: C.text,
-  "letter-spacing": "0.08em",
 } as const;
 
 const passthroughBadge = {

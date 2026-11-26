@@ -22,6 +22,9 @@ pub struct GeneralSettings {
     pub terminal_foreground: Option<String>,
     #[serde(default)]
     pub terminal_background: Option<String>,
+    /// Where the tab strip lives: "left" (vertical sidebar) or "top" (in the header).
+    #[serde(default = "default_tab_position")]
+    pub tab_position: String,
 }
 
 impl Default for GeneralSettings {
@@ -35,6 +38,7 @@ impl Default for GeneralSettings {
             terminal_palette: None,
             terminal_foreground: None,
             terminal_background: None,
+            tab_position: default_tab_position(),
         }
     }
 }
@@ -50,6 +54,9 @@ fn default_side_font_size() -> u32 {
 }
 fn default_git_poll_secs() -> u32 {
     5
+}
+fn default_tab_position() -> String {
+    "left".to_string()
 }
 
 pub fn general_path() -> PathBuf {

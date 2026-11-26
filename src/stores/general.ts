@@ -14,6 +14,7 @@ const defaults: GeneralSettings = {
   ...defaultTerminalAppearance,
   scrollback: 10000,
   git_poll_secs: 5,
+  tab_position: "left",
 };
 
 const [general, setGeneral] = createSignal<GeneralSettings>(defaults);
@@ -23,7 +24,9 @@ let pendingSave = Promise.resolve();
 
 export async function loadGeneral() {
   try {
-    setGeneral(await api.generalGet());
+    const loaded = await api.generalGet();
+    // Anything other than "top" (missing, hand-edited) falls back to the sidebar.
+    setGeneral({ ...loaded, tab_position: loaded.tab_position === "top" ? "top" : "left" });
   } catch (e) {
     console.error("loadGeneral", e);
     setGeneral(defaults);

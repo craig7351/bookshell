@@ -378,7 +378,10 @@ export interface GeneralSettings {
   terminal_palette: TerminalPalette | null;
   terminal_foreground: string | null;
   terminal_background: string | null;
+  tab_position: TabPosition;
 }
+
+export type TabPosition = "left" | "top";
 
 export interface CommandButton {
   id: string;

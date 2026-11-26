@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createResource, createSignal, For, on, Show } from "solid-js";
 import { createStore } from "solid-js/store";
-import { api, type GeneralSettings } from "../ipc/api";
+import { api, type GeneralSettings, type TabPosition } from "../ipc/api";
 import { defaultTerminalAppearance, general, updateGeneral } from "../stores/general";
 import { button, C, FONT, R, S, T } from "../theme";
 import {
@@ -50,6 +50,7 @@ export function AppearancePane() {
   const [draft, setDraft] = createStore(toDraft(saved()));
   const [saving, setSaving] = createSignal(false);
   const [status, setStatus] = createSignal<"saved" | "error" | null>(null);
+  const [layoutError, setLayoutError] = createSignal(false);
   const [systemFonts] = createResource(() => api.listTerminalFonts().catch((error) => {
     console.warn("listTerminalFonts", error);
     return null;
@@ -105,8 +106,30 @@ export function AppearancePane() {
     setStatus(null);
   }
 
+  // Tab position applies on change; it is layout, not part of the Apply draft.
+  async function changeTabPosition(value: TabPosition) {
+    setLayoutError(!(await updateGeneral({ tab_position: value })));
+  }
+
   return (
     <form onSubmit={apply} style={{ display: "flex", "flex-direction": "column", gap: S[4], "min-width": 0 }}>
+      <SettingsGroup label="Layout">
+        <SettingsRow label={<label for="appearance-tab-position">Tab position</label>} hint="Applies immediately.">
+          <select
+            id="appearance-tab-position"
+            class="bs-input"
+            onChange={(event) => void changeTabPosition(event.currentTarget.value as TabPosition)}
+            style={settingsField("200px")}
+          >
+            <option value="left" selected={general().tab_position !== "top"}>Left (sidebar)</option>
+            <option value="top" selected={general().tab_position === "top"}>Top (header)</option>
+          </select>
+        </SettingsRow>
+        <Show when={layoutError()}>
+          <div role="alert"><Notice tone="error">Could not save tab position. Try again.</Notice></div>
+        </Show>
+      </SettingsGroup>
+
       <SettingsGroup label="Text">
         <SettingsRow
           label={<label for="appearance-font">Terminal font</label>}
