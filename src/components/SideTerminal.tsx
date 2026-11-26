@@ -10,6 +10,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { api } from "../ipc/api";
 import { registerOsc52 } from "./osc52";
+import { installMiddleClickPaste } from "./middlePaste";
 import { general } from "../stores/general";
 import {
   closeSideTerm,
@@ -335,26 +336,8 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string; onFoc
     };
     host.addEventListener("mouseup", onMouseUp);
 
-    // Middle-click paste — uniform across platforms: read the system clipboard
-    // and paste it. On Linux make the helper textarea readOnly for the duration
-    // so WebKitGTK's native PRIMARY-selection middle-click paste can't ALSO fire
-    // (double-paste); term.paste() bypasses the textarea so ours still lands.
-    const onMouseDown = (e: MouseEvent) => {
-      if (e.button !== 1) return;
-      e.preventDefault();
-      const ta = term?.textarea;
-      if (ta) ta.readOnly = true;
-      api
-        .clipboardReadText()
-        .then((text) => {
-          if (text) term?.paste(text);
-        })
-        .catch((err) => console.warn("middle-click paste failed", err))
-        .finally(() => {
-          if (ta) ta.readOnly = false;
-        });
-    };
-    host.addEventListener("mousedown", onMouseDown);
+    // Middle-click paste (and the Linux double-paste guard): see middlePaste.ts.
+    const removeMiddlePaste = installMiddleClickPaste(host, () => term);
 
     const ro = new ResizeObserver(() => {
       if (isSideTermOpen(props.parentTabId)) fit?.fit();
@@ -365,7 +348,7 @@ function SideTerminalView(props: { sessionId: string; parentTabId: string; onFoc
     runWithOwner(owner, () => {
       onCleanup(() => {
         host.removeEventListener("mouseup", onMouseUp);
-        host.removeEventListener("mousedown", onMouseDown);
+        removeMiddlePaste();
         ro.disconnect();
       });
     });

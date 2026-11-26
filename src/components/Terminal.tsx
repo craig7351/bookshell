@@ -16,6 +16,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { api } from "../ipc/api";
 import { registerOsc52 } from "./osc52";
+import { installMiddleClickPaste } from "./middlePaste";
 import {
   bumpFit,
   onTabClose,
@@ -506,29 +507,8 @@ export function TerminalView(props: Props) {
     window.addEventListener("keydown", onCopyKey);
     onCleanup(() => window.removeEventListener("keydown", onCopyKey));
 
-    // Middle-click paste — uniform across platforms: read the system clipboard
-    // (the select-to-copy mouseup handler keeps it populated) and paste it.
-    // On Linux we make xterm's helper textarea readOnly for the duration so
-    // WebKitGTK's native middle-click PRIMARY-selection paste can't ALSO fire
-    // (double-paste). term.paste() writes straight to onData, bypassing the
-    // textarea, so our manual paste still lands. Harmless no-op on Win/macOS.
-    const onMouseDown = (e: MouseEvent) => {
-      if (e.button !== 1) return;
-      e.preventDefault();
-      const ta = term?.textarea;
-      if (ta) ta.readOnly = true;
-      api
-        .clipboardReadText()
-        .then((text) => {
-          if (text) term?.paste(text);
-        })
-        .catch((err) => console.warn("middle-click paste failed", err))
-        .finally(() => {
-          if (ta) ta.readOnly = false;
-        });
-    };
-    host.addEventListener("mousedown", onMouseDown);
-    onCleanup(() => host.removeEventListener("mousedown", onMouseDown));
+    // Middle-click paste (and the Linux double-paste guard): see middlePaste.ts.
+    onCleanup(installMiddleClickPaste(host, () => term));
 
     const ro = new ResizeObserver(() => {
       if (props.active) fit?.fit();
