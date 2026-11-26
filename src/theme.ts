@@ -281,6 +281,7 @@ export const H = {
   default: "26px",  // header toolbar, CommandBar pill
   roomy:   "30px",  // dialog form fields, HUD pill
   row:     "28px",  // TabBar row (the one exception)
+  dock:    "34px",  // bottom strip: CommandBar dock + TabBar "New tab" (must match)
 } as const;
 
 /** Type scale: six steps, size paired with line-height. */

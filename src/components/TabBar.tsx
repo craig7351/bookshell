@@ -587,7 +587,7 @@ export function TabBar(props: Props) {
          *  of reach, and its shortcut chip fades in on hover. */}
         <button class="bs-row bs-kbd-reveal" onClick={props.onNew} style={newBtnStyle}>
           <div style={leadSlotStyle}>
-            <Icon name="plus" size={14} />
+            <Icon name="plus" size={16} />
           </div>
           <span style={{ flex: 1, "text-align": "left" }}>New tab</span>
           <Kbd>Ctrl+Shift+T</Kbd>
@@ -875,16 +875,20 @@ const newBtnStyle = {
   "align-items": "center",
   gap: S[1.5],
   width: "100%",
-  height: H.row,
+  // Same height / border / fill as the CommandBar dock, so the two bottom
+  // strips read as one continuous bar across the window.
+  height: H.dock,
   // 10px, not 6px: the scroller above adds 4px of its own padding, so this is
   // what puts the leading slot on the same x as a tab row's.
   padding: "0 12px 0 10px",
   border: "none",
-  "border-top": `1px solid ${C.borderSub}`,
+  "border-top": `1px solid ${C.border}`,
   cursor: "pointer",
   "flex-shrink": 0,
-  ...T[12],
-  "--btn-bg": "transparent",
-  "--btn-fg": C.text3,
-  "--btn-fg-hover": C.text,
+  ...T[13],
+  "font-weight": 500,
+  "--btn-bg": C.bg2,
+  "--btn-bg-hover": C.accentBg,
+  "--btn-fg": C.accent,
+  "--btn-fg-hover": C.accentHover,
 } as const;

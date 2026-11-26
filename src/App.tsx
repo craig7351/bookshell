@@ -521,11 +521,6 @@ export default function App() {
           >
             <Icon name="search" size={14} />
           </button>
-          <div style={{ width: "1px", height: "16px", background: C.borderSub, margin: `0 ${S[0.5]}` }} />
-          <button class="bs-btn" onClick={() => setShowDialog(true)} style={primaryBtn}>
-            <Icon name="plus" size={14} />
-            Connect
-          </button>
           <button
             class="bs-iconbtn bs-tip"
             data-tip="Settings"
@@ -821,8 +816,6 @@ const iconBtn = {
   width: H.default,
   padding: "0",
 } as const;
-
-const primaryBtn = button("primary", "default");
 
 /** 8px grab strip pulled into the gutter with a negative margin so it costs
  *  no layout width; the visible 2px bar is painted by .bs-resize::after. */

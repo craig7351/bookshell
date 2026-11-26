@@ -234,7 +234,7 @@ const dockStyle: JSX.CSSProperties = {
   "align-items": "center",
   gap: S[2],
   padding: `0 ${S[3]}`,
-  height: "34px",
+  height: H.dock,
   background: C.bg2,
   "border-top": `1px solid ${C.border}`,
   "flex-shrink": 0,
