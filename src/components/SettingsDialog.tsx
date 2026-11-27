@@ -175,7 +175,7 @@ function GeneralPane() {
       <SettingsGroup label="AI sessions">
         <SettingsRow
           label="Background alerts"
-          hint="Flash the taskbar when an AI tab finishes or needs you while BOOKSHELL is in the background. For Claude Code, set preferredNotifChannel to terminal_bell so permission prompts ring."
+          hint="Flash the taskbar when an AI tab finishes or needs you while BOOKSHELL is in the background."
         >
           <label style={{ display: "inline-flex", "align-items": "center", gap: "6px", cursor: "pointer" }}>
             <input
@@ -185,6 +185,7 @@ function GeneralPane() {
             />
             Enabled
           </label>
+          <BellPromptBox />
         </SettingsRow>
       </SettingsGroup>
 
@@ -440,6 +441,58 @@ type UpdateState =
   | { kind: "update"; tag: string }
   | { kind: "installing"; label: string }
   | { kind: "error"; message: string };
+
+const BELL_PROMPT =
+  'Please enable the terminal bell for Claude Code so BOOKSHELL can alert me when a permission prompt appears. ' +
+  'In ~/.claude.json (Windows: C:\Users\<me>\.claude.json) set "preferredNotifChannel": "terminal_bell", ' +
+  'keeping every other key unchanged and the file valid JSON. ' +
+  'Also add a command hook to the "Notification" event in ~/.claude/settings.json that runs ' +
+  "`printf '\a' > /dev/tty 2>/dev/null || printf '\a'`, " +
+  'without removing existing hooks. Back up both files first, then tell me to restart the Claude Code session.';
+
+/** Ready-to-paste prompt that tells an AI agent how to turn on the terminal bell. */
+function BellPromptBox() {
+  const [copied, setCopied] = createSignal(false);
+  async function copy() {
+    try {
+      await api.clipboardWriteText(BELL_PROMPT);
+    } catch {
+      try {
+        await navigator.clipboard.writeText(BELL_PROMPT);
+      } catch {
+        return;
+      }
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+  return (
+    <div style={{ display: "flex", "flex-direction": "column", gap: S[2], flex: "1", "margin-left": S[4], "min-width": "240px" }}>
+      <div style={{ ...T[11], color: C.text3 }}>Prompt for your AI agent: enable terminal_bell</div>
+      <div
+        style={{
+          ...T[12],
+          color: C.text2,
+          background: C.bg,
+          border: `1px solid ${C.border}`,
+          "border-radius": "6px",
+          padding: `${S[2]} ${S[3]}`,
+          "max-height": "96px",
+          "overflow-y": "auto",
+          "user-select": "text",
+          "line-height": "1.5",
+        }}
+      >
+        {BELL_PROMPT}
+      </div>
+      <div>
+        <button class="bs-btn" onClick={copy} style={button("secondary", "compact")}>
+          {copied() ? "Copied" : "Copy prompt"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function AboutPane() {
   const [version] = createResource(getVersion);
