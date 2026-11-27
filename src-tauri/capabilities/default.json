@@ -6,6 +6,9 @@
   "permissions": [
     "core:default",
     "core:window:allow-destroy",
-    "core:window:allow-request-user-attention"
+    "core:window:allow-request-user-attention",
+    "updater:default",
+    "process:allow-restart",
+    "process:allow-exit"
   ]
 }

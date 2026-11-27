@@ -438,11 +438,53 @@ type UpdateState =
   | { kind: "checking" }
   | { kind: "latest" }
   | { kind: "update"; tag: string }
+  | { kind: "installing"; label: string }
   | { kind: "error"; message: string };
 
 function AboutPane() {
   const [version] = createResource(getVersion);
   const [update, setUpdate] = createSignal<UpdateState>({ kind: "idle" });
+
+  const isWindows = navigator.userAgent.includes("Windows");
+
+  /** Installer-based update via tauri-plugin-updater (signed latest.json). */
+  async function installViaUpdater(tag: string) {
+    setUpdate({ kind: "installing", label: "Checking signed update…" });
+    try {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const { relaunch } = await import("@tauri-apps/plugin-process");
+      const found = await check();
+      if (!found) throw new Error("no signed update available for this install");
+      let total = 0;
+      let got = 0;
+      await found.downloadAndInstall((ev) => {
+        if (ev.event === "Started") total = ev.data.contentLength ?? 0;
+        else if (ev.event === "Progress") {
+          got += ev.data.chunkLength;
+          const pct = total ? ` ${Math.round((got / total) * 100)}%` : "";
+          setUpdate({ kind: "installing", label: `Downloading${pct}` });
+        } else if (ev.event === "Finished") {
+          setUpdate({ kind: "installing", label: "Installing…" });
+        }
+      });
+      await relaunch();
+    } catch (e) {
+      setUpdate({ kind: "error", message: `Auto-install failed: ${String(e)}` });
+    }
+  }
+
+  /** Replace the running portable exe with the release's portable build. */
+  async function installPortable(tag: string) {
+    setUpdate({ kind: "installing", label: "Downloading portable exe…" });
+    try {
+      await api.selfUpdatePortable(tag);
+      setUpdate({ kind: "installing", label: "Restarting…" });
+      const { exit } = await import("@tauri-apps/plugin-process");
+      await exit(0);
+    } catch (e) {
+      setUpdate({ kind: "error", message: `Portable update failed: ${String(e)}` });
+    }
+  }
 
   async function checkForUpdates() {
     if (update().kind === "checking") return;
@@ -498,11 +540,36 @@ function AboutPane() {
               </span>
               <button
                 class="bs-btn"
-                onClick={() => api.urlOpen(RELEASES_PAGE).catch(() => {})}
+                onClick={() => installViaUpdater((u as { kind: "update"; tag: string }).tag)}
                 style={button("primary", "default")}
+                title="Download the signed installer update and restart (installed builds)"
               >
-                Download
+                Install update
               </button>
+              <Show when={isWindows}>
+                <button
+                  class="bs-btn"
+                  onClick={() => installPortable((u as { kind: "update"; tag: string }).tag)}
+                  style={button("secondary", "default")}
+                  title="Replace this exe with the portable build and restart"
+                >
+                  Replace portable exe
+                </button>
+              </Show>
+              <button
+                class="bs-btn"
+                onClick={() => api.urlOpen(RELEASES_PAGE).catch(() => {})}
+                style={button("secondary", "default")}
+              >
+                Release page
+              </button>
+            </span>
+          )}
+        </Show>
+        <Show when={update().kind === "installing" ? update() : null} keyed>
+          {(u) => (
+            <span style={{ ...T[12], color: C.accent }}>
+              {(u as { kind: "installing"; label: string }).label}
             </span>
           )}
         </Show>

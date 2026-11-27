@@ -125,6 +125,11 @@ export const api = {
   /** Open an http(s) URL in the user's default browser. */
   urlOpen: (url: string) => invoke<void>("url_open", { url }),
 
+  /** Windows: download the release's portable exe and swap it in after this
+   *  process exits, then relaunch. Resolves once the swap script is spawned;
+   *  the caller should then exit the app. */
+  selfUpdatePortable: (tag: string) => invoke<void>("self_update_portable", { tag }),
+
   /** Read an image from the OS clipboard, save it as PNG to a temp file, and
    *  return the absolute path. Returns null when the clipboard holds no
    *  image (text-only or empty). */

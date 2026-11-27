@@ -14,6 +14,7 @@ mod serial;
 mod ssh;
 mod tabs;
 mod telnet;
+mod updater;
 mod webview;
 
 use dashmap::DashMap;
@@ -66,6 +67,7 @@ pub fn run() {
             config::config_delete_connection,
             config::config_reorder_connections,
             logger::url_open,
+            updater::self_update_portable,
             buttons::buttons_list,
             buttons::buttons_save,
             buttons::buttons_import,

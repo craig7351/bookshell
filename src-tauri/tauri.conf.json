@@ -27,8 +27,16 @@
     "active": true,
     "targets": "all",
     "linux": {
-      "deb": { "depends": ["fontconfig"] },
-      "rpm": { "depends": ["fontconfig"] }
+      "deb": {
+        "depends": [
+          "fontconfig"
+        ]
+      },
+      "rpm": {
+        "depends": [
+          "fontconfig"
+        ]
+      }
     },
     "icon": [
       "icons/32x32.png",
@@ -36,6 +44,18 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENGRTI5RkJFMUVCMDg4RjcKUldUM2lMQWV2cC9pejNvSDcvc2tCM1c5VWNmVjBoSlgrNnZoNmNpTFNkSExJTzh3a0dYL0tCby8K",
+      "endpoints": [
+        "https://github.com/craig7351/bookshell/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

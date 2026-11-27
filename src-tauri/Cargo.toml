@@ -39,6 +39,8 @@ sysinfo = "0.32"
 base64 = "0.22"
 russh-sftp = "2.1"
 open = "5"
+tauri-plugin-updater = "=2.9.0"
+tauri-plugin-process = "=2.3.1"
 
 [target."cfg(windows)".dependencies]
 serialport = { version = "4", default-features = false }
