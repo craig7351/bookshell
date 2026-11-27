@@ -501,7 +501,7 @@ dependencies = [
 
 [[package]]
 name = "bookshell"
-version = "1.9.2"
+version = "1.9.3"
 dependencies = [
  "anyhow",
  "arboard",

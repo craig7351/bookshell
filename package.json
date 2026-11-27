@@ -1,6 +1,6 @@
 {
   "name": "bookshell",
-  "version": "1.9.2",
+  "version": "1.9.3",
   "description": "BOOKSHELL — SSH terminal for AI agents (Phase 0 prototype)",
   "type": "module",
   "scripts": {
